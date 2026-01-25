@@ -81,53 +81,119 @@
                     <div class="stat-label">Stored</div>
                 </div>
             </div>
+        </div>
 
-            <!-- Info Cards Grid (Protocols + Talkers + Apps) -->
-            <div class="info-cards">
-                <div class="card protocols-card">
-                    <div class="card-header">
-                        <h4>🔌 Protocols</h4>
-                    </div>
-                    <div class="card-content">
-                        <div class="protocol-circles" id="protocol-circles"></div>
-                    </div>
+        <!-- Info Cards Grid (Protocols + Talkers + Apps) -->
+        <div class="info-cards">
+            <div class="card protocols-card">
+                <div class="card-header">
+                    <h4>🔌 Protocols</h4>
                 </div>
-                <div class="card talkers-card">
-                    <div class="card-header">
-                        <h4>🏆 Top Talkers</h4>
-                    </div>
-                    <div class="card-content scrollable">
-                        <div class="talker-list" id="talker-list"></div>
-                    </div>
-                </div>
-                <div class="card apps-card">
-                    <div class="card-header">
-                        <h4>📱 Applications</h4>
-                    </div>
-                    <div class="card-content scrollable">
-                        <div class="app-list" id="app-list"></div>
-                    </div>
+                <div class="card-content">
+                    <div class="protocol-circles" id="protocol-circles"></div>
                 </div>
             </div>
-
-            <!-- Packets Panel (Full Width) -->
-            <div class="panel packets-panel">
-                <div class="panel-header">
-                    <h2>📋 Live Packets</h2>
-                    <div class="panel-controls">
-                        <select id="time-window" class="time-select">
-                            <option value="1">Last 1 min</option>
-                            <option value="5">Last 5 min</option>
-                            <option value="10" selected>Last 10 min</option>
-                            <option value="30">Last 30 min</option>
-                            <option value="0">All</option>
-                        </select>
-                        <input type="text" class="filter-input" id="packet-filter" placeholder="Filter...">
-                        <button class="btn btn-icon" id="pause-btn" title="Pause">⏸️</button>
-                        <button class="btn btn-icon" id="clear-btn" title="Clear">🗑️</button>
-                    </div>
+            <div class="card talkers-card">
+                <div class="card-header">
+                    <h4>🏆 Top Talkers</h4>
                 </div>
-                <div class="packet-table-container">
+                <div class="card-content scrollable">
+                    <div class="talker-list" id="talker-list"></div>
+                </div>
+            </div>
+            <div class="card apps-card">
+                <div class="card-header">
+                    <h4>📱 Applications</h4>
+                </div>
+                <div class="card-content scrollable">
+                    <div class="app-list" id="app-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Packets Panel (Full Width) -->
+        <div class="panel packets-panel">
+            <div class="panel-header">
+                <h2>📋 Live Packets</h2>
+                <div class="panel-controls">
+                    <select id="time-window" class="time-select">
+                        <option value="1">Last 1 min</option>
+                        <option value="5">Last 5 min</option>
+                        <option value="10" selected>Last 10 min</option>
+                        <option value="30">Last 30 min</option>
+                        <option value="0">All</option>
+                    </select>
+                    <input type="text" class="filter-input" id="packet-filter" placeholder="Filter...">
+                    <button class="btn btn-icon" id="pause-btn" title="Pause">⏸️</button>
+                    <button class="btn btn-icon" id="clear-btn" title="Clear">🗑️</button>
+                </div>
+            </div>
+            <div class="packet-table-container">
+                <table class="packet-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Protocol</th>
+                            <th>Len</th>
+                            <th>Info</th>
+                        </tr>
+                    </thead>
+                    <tbody id="packet-table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Connections Panel -->
+        <div class="connections-section collapsed">
+            <div class="panel-header collapsible" id="connections-toggle">
+                <h2>🔗 Active Connections</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="connections-content" id="connections-content">
+                <div class="connections-table-container">
+                    <table class="connections-table">
+                        <thead>
+                            <tr>
+                                <th>Source</th>
+                                <th>Destination</th>
+                                <th>Protocol</th>
+                                <th>Packets</th>
+                                <th>Bytes</th>
+                                <th>Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="connections-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Panel -->
+        <div class="history-section collapsed" id="history-section">
+            <div class="panel-header collapsible" id="history-toggle">
+                <h2>📚 Packet History</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="history-content" id="history-content">
+                <div class="history-controls">
+                    <div class="quick-filters">
+                        <button class="btn quick-filter-btn" data-days="1">Last Day</button>
+                        <button class="btn quick-filter-btn" data-days="7">Last Week</button>
+                        <button class="btn quick-filter-btn" data-days="30">Last Month</button>
+                    </div>
+                    <input type="text" class="filter-input" id="history-filter" placeholder="Search...">
+                    <input type="text" class="filter-input exclude-input" id="history-exclude"
+                        placeholder="Exclude IPs (comma-sep)" title="Comma-separated list of IPs to exclude">
+                    <input type="datetime-local" class="date-input" id="history-start">
+                    <input type="datetime-local" class="date-input" id="history-end">
+                    <button class="btn" id="history-search-btn">🔍 Search</button>
+                    <span class="history-info" id="history-info"></span>
+                </div>
+                <div class="history-table-container">
                     <table class="packet-table">
                         <thead>
                             <tr>
@@ -139,85 +205,20 @@
                                 <th>Info</th>
                             </tr>
                         </thead>
-                        <tbody id="packet-table-body">
+                        <tbody id="history-table-body">
                         </tbody>
                     </table>
                 </div>
-            </div>
-
-            <!-- Connections Panel -->
-            <div class="connections-section collapsed">
-                <div class="panel-header collapsible" id="connections-toggle">
-                    <h2>🔗 Active Connections</h2>
-                    <span class="toggle-icon">▼</span>
-                </div>
-                <div class="connections-content" id="connections-content">
-                    <div class="connections-table-container">
-                        <table class="connections-table">
-                            <thead>
-                                <tr>
-                                    <th>Source</th>
-                                    <th>Destination</th>
-                                    <th>Protocol</th>
-                                    <th>Packets</th>
-                                    <th>Bytes</th>
-                                    <th>Duration</th>
-                                </tr>
-                            </thead>
-                            <tbody id="connections-table-body">
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- History Panel -->
-            <div class="history-section collapsed" id="history-section">
-                <div class="panel-header collapsible" id="history-toggle">
-                    <h2>📚 Packet History</h2>
-                    <span class="toggle-icon">▼</span>
-                </div>
-                <div class="history-content" id="history-content">
-                    <div class="history-controls">
-                        <div class="quick-filters">
-                            <button class="btn quick-filter-btn" data-days="1">Last Day</button>
-                            <button class="btn quick-filter-btn" data-days="7">Last Week</button>
-                            <button class="btn quick-filter-btn" data-days="30">Last Month</button>
-                        </div>
-                        <input type="text" class="filter-input" id="history-filter" placeholder="Search...">
-                        <input type="text" class="filter-input exclude-input" id="history-exclude"
-                            placeholder="Exclude IPs (comma-sep)" title="Comma-separated list of IPs to exclude">
-                        <input type="datetime-local" class="date-input" id="history-start">
-                        <input type="datetime-local" class="date-input" id="history-end">
-                        <button class="btn" id="history-search-btn">🔍 Search</button>
-                        <span class="history-info" id="history-info"></span>
-                    </div>
-                    <div class="history-table-container">
-                        <table class="packet-table">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                                    <th>Source</th>
-                                    <th>Destination</th>
-                                    <th>Protocol</th>
-                                    <th>Len</th>
-                                    <th>Info</th>
-                                </tr>
-                            </thead>
-                            <tbody id="history-table-body">
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="pagination" id="history-pagination">
-                        <button class="btn" id="history-prev" disabled>← Prev</button>
-                        <span class="page-info" id="history-page-info">Page 1</span>
-                        <button class="btn" id="history-next">Next →</button>
-                    </div>
+                <div class="pagination" id="history-pagination">
+                    <button class="btn" id="history-prev" disabled>← Prev</button>
+                    <span class="page-info" id="history-page-info">Page 1</span>
+                    <button class="btn" id="history-next">Next →</button>
                 </div>
             </div>
         </div>
+    </div>
 
-        <script src="app.js"></script>
+    <script src="app.js"></script>
 </body>
 
 </html>
