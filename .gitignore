@@ -1,0 +1,10 @@
+# Binary
+pi-track
+pi-track.*
+pi-track-*
+pi-track*
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
