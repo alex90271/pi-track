@@ -45,6 +45,7 @@ class PiTrack {
             timeWindow: document.getElementById('time-window'),
             protocolCircles: document.getElementById('protocol-circles'),
             talkerList: document.getElementById('talker-list'),
+            processList: document.getElementById('process-list'),
             appList: document.getElementById('app-list'),
             connectionsTableBody: document.getElementById('connections-table-body'),
             // Database elements
@@ -345,6 +346,7 @@ class PiTrack {
             <td class="col-ip" title="${packet.dstMac || ''}">${this.formatAddressWithInfo(packet.dstIp, packet.dstPort, packet.dstHostname, packet.dstCountry)}</td>
             <td><span class="proto-cell proto-${packet.protocol.toLowerCase()}">${packet.protocol}</span></td>
             <td>${packet.length}</td>
+            <td class="col-process" title="${packet.processName || ''}">${packet.processName || '-'}</td>
             <td title="${packet.info || ''}">${this.truncate(packet.info || packet.application || '-', 50)}</td>
         `;
 
@@ -398,7 +400,9 @@ class PiTrack {
             packet.srcCountry,
             packet.dstCountry,
             String(packet.srcPort),
-            String(packet.dstPort)
+            String(packet.srcPort),
+            String(packet.dstPort),
+            packet.processName || ''
         ].join(' ').toLowerCase();
 
         return searchStr.includes(this.filter);
@@ -421,6 +425,9 @@ class PiTrack {
 
         // Render applications
         this.renderApplications();
+
+        // Render processes
+        this.renderProcesses();
 
         // Render connections
         this.renderConnections();
@@ -486,6 +493,36 @@ class PiTrack {
                         <span class="flag-icon">${countryFlag}</span>${this.truncate(displayName, 20)}
                     </div>
                     <div class="list-val">${this.formatBytes(talker.bytes)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    renderProcesses() {
+        if (!this.elements.processList || !this.stats || !this.stats.processStats) return;
+
+        const processes = this.stats.processStats;
+        const sorted = Object.entries(processes)
+            .sort((a, b) => b[1] - a[1]);
+
+        if (sorted.length === 0) {
+            this.elements.processList.innerHTML = '<div class="empty-state" style="padding:1rem;"><span>No process data</span></div>';
+            return;
+        }
+
+        const maxBytes = sorted[0][1] || 1;
+
+        this.elements.processList.innerHTML = sorted.slice(0, 10).map(([name, bytes]) => {
+            const percentage = Math.round((bytes / maxBytes) * 100);
+            return `
+                <div class="list-row">
+                    <div class="list-txt" title="${name}">
+                        <i class="bi bi-cpu" style="font-size: 0.8rem; margin-right: 5px;"></i>${this.truncate(name, 20)}
+                    </div>
+                    <div class="list-val">${this.formatBytes(bytes)}</div>
+                </div>
+                <div class="progress-bar-mini" style="margin-bottom: 4px;">
+                    <div class="fill" style="width: ${percentage}%"></div>
                 </div>
             `;
         }).join('');
@@ -801,13 +838,15 @@ class PiTrack {
             });
 
             return `
-                <tr class="protocol-${(packet.protocol || 'unknown').toLowerCase()}">
-                    <td class="packet-time">${timeStr}</td>
-                    <td>${this.formatAddressWithInfo(packet.srcIp, packet.srcPort, packet.srcHostname, packet.srcCountry)}</td>
-                    <td>${this.formatAddressWithInfo(packet.dstIp, packet.dstPort, packet.dstHostname, packet.dstCountry)}</td>
-                    <td><span class="protocol-badge ${(packet.protocol || 'unknown').toLowerCase()}">${packet.protocol || 'Unknown'}</span></td>
+                <tr>
+                    <td class="col-time">${timeStr}</td>
+                    <td class="col-ip" title="${packet.srcMac || ''}">${this.formatAddressWithInfo(packet.srcIp, packet.srcPort, packet.srcHostname, packet.srcCountry)}</td>
+                    <td class="col-icon"><i class="bi bi-arrow-right"></i></td>
+                    <td class="col-ip" title="${packet.dstMac || ''}">${this.formatAddressWithInfo(packet.dstIp, packet.dstPort, packet.dstHostname, packet.dstCountry)}</td>
+                    <td><span class="proto-cell proto-${(packet.protocol || 'unknown').toLowerCase()}">${packet.protocol || 'Unknown'}</span></td>
                     <td>${packet.length}</td>
-                    <td title="${packet.info || ''}">${this.truncate(packet.info || packet.application || '-', 40)}</td>
+                    <td class="col-process">${packet.processName || '-'}</td>
+                    <td title="${packet.info || ''}">${this.truncate(packet.info || packet.application || '-', 50)}</td>
                 </tr>
             `;
         }).join('');

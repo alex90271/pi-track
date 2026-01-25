@@ -41,6 +41,7 @@ type Packet struct {
 	DstHostname string    `json:"dstHostname"`
 	SrcCountry  string    `json:"srcCountry"`
 	DstCountry  string    `json:"dstCountry"`
+	ProcessName string    `json:"processName"`
 }
 
 // Stats holds network statistics
@@ -53,6 +54,7 @@ type Stats struct {
 	CountryStats     map[string]int64 `json:"countryStats"`
 	TopTalkers       []Talker         `json:"topTalkers"`
 	ApplicationStats map[string]int64 `json:"applicationStats"`
+	ProcessStats     map[string]int64 `json:"processStats"`
 	StartTime        time.Time        `json:"startTime"`
 }
 
@@ -125,6 +127,7 @@ func NewPacketStore(maxPackets int) *PacketStore {
 			ProtocolStats:    make(map[string]int64),
 			CountryStats:     make(map[string]int64),
 			ApplicationStats: make(map[string]int64),
+			ProcessStats:     make(map[string]int64),
 			StartTime:        time.Now(),
 		},
 		ipStats:         make(map[string]*ipTraffic),
@@ -174,6 +177,11 @@ func (ps *PacketStore) AddPacket(p Packet) {
 		}
 		ps.ipStats[p.SrcIP].packets++
 		ps.ipStats[p.SrcIP].bytes += int64(p.Length)
+	}
+
+	// Track Process Stats
+	if p.ProcessName != "" {
+		ps.stats.ProcessStats[p.ProcessName] += int64(p.Length)
 	}
 
 	// Track connections
@@ -496,7 +504,7 @@ func detectApplication(srcPort, dstPort uint16) string {
 	return ""
 }
 
-func startCapture(iface string, store *PacketStore, db *Database) error {
+func startCapture(iface string, store *PacketStore, db *Database, tracker *ProcessTracker) error {
 	// Open the device
 	handle, err := pcap.OpenLive(iface, 65536, true, pcap.BlockForever)
 	if err != nil {
@@ -504,12 +512,25 @@ func startCapture(iface string, store *PacketStore, db *Database) error {
 	}
 	defer handle.Close()
 
-	log.Printf("Started capturing on interface: %s", iface)
+	// Get local IPs for this interface to identify direction
+	localIPs := make(map[string]bool)
+	devices, _ := pcap.FindAllDevs()
+	for _, dev := range devices {
+		if dev.Name == iface {
+			for _, addr := range dev.Addresses {
+				if addr.IP != nil {
+					localIPs[addr.IP.String()] = true
+				}
+			}
+		}
+	}
+
+	log.Printf("Started capturing on interface: %s (Local IPs: %v)", iface, localIPs)
 
 	packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
 
 	for packet := range packetSource.Packets() {
-		p := parsePacket(packet)
+		p := parsePacket(packet, tracker, localIPs)
 		store.AddPacket(p)
 
 		// Store in database if enabled
@@ -524,7 +545,7 @@ func startCapture(iface string, store *PacketStore, db *Database) error {
 	return nil
 }
 
-func parsePacket(packet gopacket.Packet) Packet {
+func parsePacket(packet gopacket.Packet, tracker *ProcessTracker, localIPs map[string]bool) Packet {
 	p := Packet{
 		Timestamp: packet.Metadata().Timestamp,
 		Length:    packet.Metadata().Length,
@@ -624,6 +645,15 @@ func parsePacket(packet gopacket.Packet) Packet {
 		p.Application = detectApplication(p.SrcPort, p.DstPort)
 	}
 
+	// Detect process name (local only)
+	if tracker != nil {
+		if localIPs[p.SrcIP] {
+			p.ProcessName = tracker.GetProcessName(p.SrcPort)
+		} else if localIPs[p.DstIP] {
+			p.ProcessName = tracker.GetProcessName(p.DstPort)
+		}
+	}
+
 	// Resolve hostname and country for source/destination IPs (async)
 	if p.SrcIP != "" {
 		srcInfo := getIPInfo(p.SrcIP)
@@ -700,10 +730,12 @@ func main() {
 	}
 
 	store := NewPacketStore(*maxPackets)
+	tracker := NewProcessTracker()
+	tracker.Start()
 
 	// Start packet capture in background
 	go func() {
-		if err := startCapture(*iface, store, db); err != nil {
+		if err := startCapture(*iface, store, db, tracker); err != nil {
 			log.Printf("Capture error: %v", err)
 		}
 	}()

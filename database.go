@@ -59,8 +59,9 @@ func NewDatabase(dbPath string) (*Database, error) {
 		INSERT INTO packets (
 			timestamp, src_ip, dst_ip, src_port, dst_port, 
 			protocol, length, info, src_mac, dst_mac, 
-			application, src_hostname, dst_hostname, src_country, dst_country
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			application, src_hostname, dst_hostname, src_country, dst_country,
+			process_name
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare insert statement: %v", err)
@@ -134,6 +135,9 @@ func createTables(db *sql.DB) error {
 		return fmt.Errorf("failed to create schema: %v", err)
 	}
 
+	// Migration: Add process_name column if it doesn't exist
+	db.Exec("ALTER TABLE packets ADD COLUMN process_name TEXT")
+
 	return nil
 }
 
@@ -180,6 +184,7 @@ func (d *Database) Flush() {
 			p.Timestamp, p.SrcIP, p.DstIP, p.SrcPort, p.DstPort,
 			p.Protocol, p.Length, p.Info, p.SrcMAC, p.DstMAC,
 			p.Application, p.SrcHostname, p.DstHostname, p.SrcCountry, p.DstCountry,
+			p.ProcessName,
 		)
 		if err != nil {
 			log.Printf("Database insert error: %v", err)
@@ -210,7 +215,7 @@ func (d *Database) backgroundFlush() {
 // QueryPackets retrieves packets from the database with optional filters
 func (d *Database) QueryPackets(limit int, offset int, filter string, country string, excludeIPs []string, startTime, endTime *time.Time) ([]Packet, int, error) {
 	// Build query
-	query := "SELECT id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol, length, info, src_mac, dst_mac, application, src_hostname, dst_hostname, src_country, dst_country FROM packets WHERE 1=1"
+	query := "SELECT id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol, length, info, src_mac, dst_mac, application, src_hostname, dst_hostname, src_country, dst_country, process_name FROM packets WHERE 1=1"
 	countQuery := "SELECT COUNT(*) FROM packets WHERE 1=1"
 	args := []interface{}{}
 
@@ -272,11 +277,12 @@ func (d *Database) QueryPackets(limit int, offset int, filter string, country st
 	packets := []Packet{}
 	for rows.Next() {
 		var p Packet
-		var srcHostname, dstHostname, srcCountry, dstCountry sql.NullString
+		var srcHostname, dstHostname, srcCountry, dstCountry, processName sql.NullString
 		err := rows.Scan(
 			&p.ID, &p.Timestamp, &p.SrcIP, &p.DstIP, &p.SrcPort, &p.DstPort,
 			&p.Protocol, &p.Length, &p.Info, &p.SrcMAC, &p.DstMAC,
 			&p.Application, &srcHostname, &dstHostname, &srcCountry, &dstCountry,
+			&processName,
 		)
 		if err != nil {
 			log.Printf("Error scanning row: %v", err)
@@ -286,6 +292,7 @@ func (d *Database) QueryPackets(limit int, offset int, filter string, country st
 		p.DstHostname = dstHostname.String
 		p.SrcCountry = srcCountry.String
 		p.DstCountry = dstCountry.String
+		p.ProcessName = processName.String
 		packets = append(packets, p)
 	}
 
