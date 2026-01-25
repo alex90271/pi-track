@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -779,7 +780,13 @@ func main() {
 				}
 			}
 
-			packets, total, err := db.QueryPackets(limit, offset, filter, startTime, endTime)
+			// Parse exclude IPs
+			var excludeIPs []string
+			if exclude := r.URL.Query().Get("exclude"); exclude != "" {
+				excludeIPs = strings.Split(exclude, ",")
+			}
+
+			packets, total, err := db.QueryPackets(limit, offset, filter, excludeIPs, startTime, endTime)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return

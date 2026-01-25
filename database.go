@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ type Database struct {
 	batchQueue  []Packet
 	batchSize   int
 	flushTicker *time.Ticker
+	flushChan   chan struct{} // Signal channel for flush requests
 	stopChan    chan struct{}
 }
 
@@ -70,6 +72,7 @@ func NewDatabase(dbPath string) (*Database, error) {
 		batchQueue:  make([]Packet, 0, 100),
 		batchSize:   100, // Batch insert every 100 packets
 		flushTicker: time.NewTicker(5 * time.Second),
+		flushChan:   make(chan struct{}, 1), // Buffered channel of size 1 for checks
 		stopChan:    make(chan struct{}),
 	}
 
@@ -142,7 +145,12 @@ func (d *Database) QueuePacket(p Packet) {
 	d.insertMu.Unlock()
 
 	if shouldFlush {
-		go d.Flush()
+		// Non-blocking send to signal flush
+		select {
+		case d.flushChan <- struct{}{}:
+		default:
+			// Already signaled, that's fine
+		}
 	}
 }
 
@@ -189,6 +197,8 @@ func (d *Database) backgroundFlush() {
 		select {
 		case <-d.flushTicker.C:
 			d.Flush()
+		case <-d.flushChan:
+			d.Flush()
 		case <-d.stopChan:
 			d.flushTicker.Stop()
 			d.Flush() // Final flush
@@ -198,7 +208,7 @@ func (d *Database) backgroundFlush() {
 }
 
 // QueryPackets retrieves packets from the database with optional filters
-func (d *Database) QueryPackets(limit int, offset int, filter string, startTime, endTime *time.Time) ([]Packet, int, error) {
+func (d *Database) QueryPackets(limit int, offset int, filter string, excludeIPs []string, startTime, endTime *time.Time) ([]Packet, int, error) {
 	// Build query
 	query := "SELECT id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol, length, info, src_mac, dst_mac, application, src_hostname, dst_hostname, src_country, dst_country FROM packets WHERE 1=1"
 	countQuery := "SELECT COUNT(*) FROM packets WHERE 1=1"
@@ -222,6 +232,17 @@ func (d *Database) QueryPackets(limit int, offset int, filter string, startTime,
 		countQuery += filterClause
 		filterArg := "%" + filter + "%"
 		args = append(args, filterArg, filterArg, filterArg, filterArg, filterArg, filterArg, filterArg)
+	}
+
+	// Exclude specified IPs
+	for _, ip := range excludeIPs {
+		ip = strings.TrimSpace(ip)
+		if ip != "" {
+			excludeClause := " AND src_ip != ? AND dst_ip != ?"
+			query += excludeClause
+			countQuery += excludeClause
+			args = append(args, ip, ip)
+		}
 	}
 
 	// Get total count
