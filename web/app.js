@@ -63,6 +63,7 @@ class PiTrack {
             historyPrev: document.getElementById('history-prev'),
             historyNext: document.getElementById('history-next'),
             historyPageInfo: document.getElementById('history-page-info'),
+            countryTableBody: document.getElementById('country-table-body'),
         };
     }
 
@@ -77,7 +78,7 @@ class PiTrack {
         if (this.elements.pauseBtn) {
             this.elements.pauseBtn.addEventListener('click', () => {
                 this.paused = !this.paused;
-                this.elements.pauseBtn.textContent = this.paused ? '▶️' : '⏸️';
+                this.elements.pauseBtn.innerHTML = this.paused ? '<i class="bi bi-play-fill"></i> Resume' : '<i class="bi bi-pause-fill"></i> Pause';
                 this.elements.pauseBtn.classList.toggle('active', this.paused);
             });
         }
@@ -97,17 +98,34 @@ class PiTrack {
         }
 
         // Tab switching
-        document.querySelectorAll('.tab-btn').forEach(btn => {
+        document.querySelectorAll('.nav-icon-btn[data-tab]').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const targetTab = e.target.dataset.tab;
+                // Find the closest button element in case user clicked the icon span
+                const targetBtn = e.target.closest('.nav-icon-btn');
+                if (!targetBtn) return;
+
+                const targetTab = targetBtn.dataset.tab;
 
                 // Update tab buttons
-                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
+                document.querySelectorAll('.nav-icon-btn[data-tab]').forEach(b => b.classList.remove('active'));
+                targetBtn.classList.add('active');
 
                 // Update tab panes
-                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-                document.getElementById(`tab-${targetTab}`).classList.add('active');
+                document.querySelectorAll('.view-pane').forEach(p => p.classList.remove('active'));
+                const pane = document.getElementById(`tab-${targetTab}`);
+                if (pane) pane.classList.add('active');
+
+                // Update Page Title
+                const titleMap = {
+                    'live': 'Live Traffic',
+                    'connections': 'Active Connections',
+                    'history': 'Traffic Log',
+                    'countries': 'Geographic Distribution'
+                };
+                const titleEl = document.getElementById('page-title');
+                if (titleEl && titleMap[targetTab]) {
+                    titleEl.textContent = titleMap[targetTab];
+                }
 
                 // Load data for specific tabs if needed
                 if (targetTab === 'history') {
@@ -285,7 +303,8 @@ class PiTrack {
         if (!this.matchesFilter(packet)) return;
 
         const row = document.createElement('tr');
-        row.className = `protocol-${packet.protocol.toLowerCase()}`;
+        // Proto-color logic handled differently now, but can keep for reference or remove
+        // row.className = `protocol-${packet.protocol.toLowerCase()}`;
 
         const time = new Date(packet.timestamp);
         const timeStr = time.toLocaleTimeString('en-US', {
@@ -297,10 +316,11 @@ class PiTrack {
         });
 
         row.innerHTML = `
-            <td class="packet-time">${timeStr}</td>
-            <td title="${packet.srcMac || ''}">${this.formatAddressWithInfo(packet.srcIp, packet.srcPort, packet.srcHostname, packet.srcCountry)}</td>
-            <td title="${packet.dstMac || ''}">${this.formatAddressWithInfo(packet.dstIp, packet.dstPort, packet.dstHostname, packet.dstCountry)}</td>
-            <td><span class="protocol-badge ${packet.protocol.toLowerCase()}">${packet.protocol}</span></td>
+            <td class="col-time">${timeStr}</td>
+            <td class="col-ip" title="${packet.srcMac || ''}">${this.formatAddressWithInfo(packet.srcIp, packet.srcPort, packet.srcHostname, packet.srcCountry)}</td>
+            <td class="col-icon"><i class="bi bi-arrow-right"></i></td>
+            <td class="col-ip" title="${packet.dstMac || ''}">${this.formatAddressWithInfo(packet.dstIp, packet.dstPort, packet.dstHostname, packet.dstCountry)}</td>
+            <td><span class="proto-cell proto-${packet.protocol.toLowerCase()}">${packet.protocol}</span></td>
             <td>${packet.length}</td>
             <td title="${packet.info || ''}">${this.truncate(packet.info || packet.application || '-', 50)}</td>
         `;
@@ -313,10 +333,11 @@ class PiTrack {
                 this.elements.packetTableBody.removeChild(this.elements.packetTableBody.firstChild);
             }
 
-            // Auto-scroll to bottom
+            // Auto-scroll to bottom - Only if near bottom? Or just always for now
             if (!this.paused) {
-                const container = this.elements.packetTableBody.closest('.packet-table-container');
-                container.scrollTop = container.scrollHeight;
+                const container = this.elements.packetTableBody.closest('.table-wrapper');
+                // Check if user is scrolling up? For now simple auto-scroll
+                if (container) container.scrollTop = container.scrollHeight;
             }
         } else {
             this.elements.packetTableBody.appendChild(row);
@@ -380,6 +401,9 @@ class PiTrack {
 
         // Render connections
         this.renderConnections();
+
+        // Render countries
+        this.renderCountries();
     }
 
     renderProtocols() {
@@ -423,47 +447,35 @@ class PiTrack {
         const talkers = this.stats.topTalkers || [];
 
         if (talkers.length === 0) {
-            this.elements.talkerList.innerHTML = '<div class="empty-state"><span>No data yet</span></div>';
+            this.elements.talkerList.innerHTML = '<div class="empty-state" style="padding:1rem;"><span>No data</span></div>';
             return;
         }
 
         const maxBytes = talkers[0]?.bytes || 1;
 
-        this.elements.talkerList.innerHTML = talkers.slice(0, 6).map(talker => {
-            const percentage = (talker.bytes / maxBytes) * 100;
+        this.elements.talkerList.innerHTML = talkers.slice(0, 10).map(talker => {
             const displayName = talker.hostname || talker.ip;
             const countryFlag = talker.country ? this.getCountryFlag(talker.country) : '';
+            // Dense list row
             return `
-                <div class="list-item">
-                    <div class="list-item-info">
-                        <div class="list-item-name" title="${talker.ip}">${countryFlag} ${this.truncate(displayName, 18)}</div>
-                        <div class="list-item-detail">${talker.packets} pkts</div>
+                <div class="list-row">
+                    <div class="list-txt" title="${talker.ip}">
+                        <span class="flag-icon">${countryFlag}</span>${this.truncate(displayName, 20)}
                     </div>
-                    <div class="list-item-value">${this.formatBytes(talker.bytes)}</div>
+                    <div class="list-val">${this.formatBytes(talker.bytes)}</div>
                 </div>
             `;
         }).join('');
     }
 
     renderApplications() {
+        // Not used in new layout immediately, but good to have
         const apps = this.stats.applicationStats || {};
         const sorted = Object.entries(apps)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 6);
+            .slice(0, 5);
 
-        if (sorted.length === 0) {
-            this.elements.appList.innerHTML = '<div class="empty-state"><span>No data yet</span></div>';
-            return;
-        }
-
-        this.elements.appList.innerHTML = sorted.map(([app, count]) => `
-            <div class="list-item">
-                <div class="list-item-info">
-                    <div class="list-item-name">${app}</div>
-                </div>
-                <div class="list-item-value">${this.formatNumber(count)}</div>
-            </div>
-        `).join('');
+        // ... (Optional: could render to another list if added)
     }
 
     renderConnections() {
@@ -474,10 +486,8 @@ class PiTrack {
                 if (connections.length === 0) {
                     this.elements.connectionsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="6">
-                                <div class="empty-state">
-                                    <span>No active connections</span>
-                                </div>
+                            <td colspan="7" style="text-align:center; padding: 2rem;">
+                                No active connections
                             </td>
                         </tr>
                     `;
@@ -490,9 +500,10 @@ class PiTrack {
                     );
                     return `
                         <tr>
-                            <td>${conn.srcIp}:${conn.srcPort}</td>
-                            <td>${conn.dstIp}:${conn.dstPort}</td>
-                            <td><span class="protocol-badge ${conn.protocol.toLowerCase()}">${conn.protocol}</span></td>
+                            <td class="col-ip">${conn.srcIp}</td>
+                            <td class="col-icon"><i class="bi bi-arrow-right"></i></td>
+                            <td class="col-ip">${conn.dstIp}</td>
+                            <td><span class="proto-cell proto-${conn.protocol.toLowerCase()}">${conn.protocol}</span></td>
                             <td>${this.formatNumber(conn.packets)}</td>
                             <td>${this.formatBytes(conn.bytes)}</td>
                             <td>${duration}</td>
@@ -501,6 +512,56 @@ class PiTrack {
                 }).join('');
             })
             .catch(err => console.error('Failed to fetch connections:', err));
+    }
+
+    renderCountries() {
+        if (!this.elements.countryTableBody || !this.stats || !this.stats.countryStats) return;
+
+        const countries = Object.entries(this.stats.countryStats)
+            .sort((a, b) => b[1] - a[1]); // Sort by bytes descending
+
+        const totalBytes = countries.reduce((acc, [, bytes]) => acc + bytes, 0);
+
+        if (countries.length === 0) {
+            this.elements.countryTableBody.innerHTML = `
+                <tr><td colspan="5" style="text-align:center; padding: 2rem;">No country data yet</td></tr>
+            `;
+            return;
+        }
+
+        this.elements.countryTableBody.innerHTML = countries.map(([code, bytes]) => {
+            const percentage = totalBytes > 0 ? ((bytes / totalBytes) * 100).toFixed(1) : 0;
+            const flag = this.getCountryFlag(code);
+            // Get full name if possible, or just use code
+            let name = code;
+            if (code === 'Local') {
+                name = 'Local Network';
+            } else {
+                try {
+                    const regionNames = new Intl.DisplayNames(['en'], { type: 'region' });
+                    name = regionNames.of(code);
+                } catch (e) {
+                    name = code;
+                }
+            }
+
+            return `
+                <tr>
+                    <td class="col-icon" style="font-size:1.2rem;">${flag}</td>
+                    <td style="font-weight:500;">${name}</td>
+                    <td class="col-time">${code}</td>
+                    <td class="col-ip">${this.formatBytes(bytes)}</td>
+                    <td>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <div style="flex:1; height:4px; background:#f0f0f0; border-radius:2px; max-width:100px;">
+                                <div style="width:${percentage}%; height:100%; background:var(--accent-blue); border-radius:2px;"></div>
+                            </div>
+                            <span style="font-size:0.75rem; color:var(--text-secondary);">${percentage}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
     startUptimeTimer() {
@@ -604,7 +665,16 @@ class PiTrack {
                 }
 
                 if (this.elements.dbText) {
-                    this.elements.dbText.textContent = info.enabled ? 'ON' : 'OFF';
+                    if (info.enabled) {
+                        const size = this.formatBytes(info.databaseSize || 0);
+                        const filename = info.path ? info.path.split('/').pop() : 'DB';
+                        this.elements.dbText.innerHTML = `<div style="display:flex; flex-direction:column; line-height:1.2; font-size:0.65rem;"><span>${filename}</span><span>${size}</span></div>`;
+                        // Remove icon look if we want text, or keep icon alongside? 
+                        // The container is a nav-icon-btn (40x40). 
+                        // Let's replace the icon content with this small stack.
+                    } else {
+                        this.elements.dbText.textContent = 'OFF';
+                    }
                 }
 
                 if (this.elements.dbCard) {
@@ -631,6 +701,11 @@ class PiTrack {
             .then(info => {
                 if (this.elements.dbPackets && info.enabled) {
                     this.elements.dbPackets.textContent = this.formatNumber(info.totalPackets || 0);
+                }
+                if (this.elements.dbText && info.enabled) {
+                    const size = this.formatBytes(info.databaseSize || 0);
+                    const filename = info.path ? info.path.split('/').pop() : 'DB';
+                    this.elements.dbText.innerHTML = `<div style="display:flex; flex-direction:column; line-height:1.2; font-size:0.65rem;"><span>${filename}</span><span>${size}</span></div>`;
                 }
             })
             .catch(() => { });

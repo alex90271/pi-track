@@ -50,6 +50,7 @@ type Stats struct {
 	PacketsPerSec    float64          `json:"packetsPerSec"`
 	BytesPerSec      float64          `json:"bytesPerSec"`
 	ProtocolStats    map[string]int64 `json:"protocolStats"`
+	CountryStats     map[string]int64 `json:"countryStats"`
 	TopTalkers       []Talker         `json:"topTalkers"`
 	ApplicationStats map[string]int64 `json:"applicationStats"`
 	StartTime        time.Time        `json:"startTime"`
@@ -122,6 +123,7 @@ func NewPacketStore(maxPackets int) *PacketStore {
 		maxPackets: maxPackets,
 		stats: Stats{
 			ProtocolStats:    make(map[string]int64),
+			CountryStats:     make(map[string]int64),
 			ApplicationStats: make(map[string]int64),
 			StartTime:        time.Now(),
 		},
@@ -155,6 +157,14 @@ func (ps *PacketStore) AddPacket(p Packet) {
 
 	if p.Application != "" {
 		ps.stats.ApplicationStats[p.Application]++
+	}
+
+	// Track Country Stats (By Bytes)
+	if p.SrcCountry != "" {
+		ps.stats.CountryStats[p.SrcCountry] += int64(p.Length)
+	}
+	if p.DstCountry != "" {
+		ps.stats.CountryStats[p.DstCountry] += int64(p.Length)
 	}
 
 	// Track IP stats
@@ -220,14 +230,22 @@ func (ps *PacketStore) GetStats() Stats {
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 
-	// Calculate top talkers
+	// Calculate top talkers and country stats dynamically
 	talkers := make([]Talker, 0, len(ps.ipStats))
+	countryStats := make(map[string]int64)
+
 	for ip, stats := range ps.ipStats {
 		info := getIPInfo(ip)
 		if info.Hostname == "" && info.Country == "" {
-			// Trigger resolution for this IP
+			// Trigger resolution for this IP if not already trying
 			go resolveIPInfo(ip)
 		}
+
+		// Aggregate country stats
+		if info.Country != "" {
+			countryStats[info.Country] += stats.bytes
+		}
+
 		talkers = append(talkers, Talker{
 			IP:       ip,
 			Packets:  stats.packets,
@@ -249,6 +267,7 @@ func (ps *PacketStore) GetStats() Stats {
 
 	stats := ps.stats
 	stats.TopTalkers = talkers
+	stats.CountryStats = countryStats // Assign the dynamically calculated map
 	return stats
 }
 
@@ -918,7 +937,7 @@ func main() {
 	fmt.Printf("║  📡 Capturing on: %-43s ║\n", *iface)
 	fmt.Printf("║  🌍 Web Interface: http://0.0.0.0:%-27d ║\n", *port)
 	fmt.Println("║  💡 Access from any device on your network                   ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝\n")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 
 	// Get local IP for convenience
 	addrs, _ := net.InterfaceAddrs()
