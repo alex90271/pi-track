@@ -10,6 +10,7 @@ class PiTrack {
         this.filter = '';
         this.maxDisplayedPackets = 500;
         this.startTime = null;
+        this.timeWindowMinutes = 10; // Default: last 10 minutes
 
         // Database/History state
         this.dbEnabled = false;
@@ -41,7 +42,8 @@ class PiTrack {
             packetFilter: document.getElementById('packet-filter'),
             pauseBtn: document.getElementById('pause-btn'),
             clearBtn: document.getElementById('clear-btn'),
-            protocolList: document.getElementById('protocol-list'),
+            timeWindow: document.getElementById('time-window'),
+            protocolCircles: document.getElementById('protocol-circles'),
             talkerList: document.getElementById('talker-list'),
             appList: document.getElementById('app-list'),
             connectionsToggle: document.getElementById('connections-toggle'),
@@ -58,6 +60,7 @@ class PiTrack {
             historyContent: document.getElementById('history-content'),
             historyTableBody: document.getElementById('history-table-body'),
             historyFilter: document.getElementById('history-filter'),
+            historyExclude: document.getElementById('history-exclude'),
             historyStart: document.getElementById('history-start'),
             historyEnd: document.getElementById('history-end'),
             historySearchBtn: document.getElementById('history-search-btn'),
@@ -69,25 +72,40 @@ class PiTrack {
     }
 
     bindEvents() {
-        this.elements.packetFilter.addEventListener('input', (e) => {
-            this.filter = e.target.value.toLowerCase();
-            this.renderPackets();
-        });
+        if (this.elements.packetFilter) {
+            this.elements.packetFilter.addEventListener('input', (e) => {
+                this.filter = e.target.value.toLowerCase();
+                this.renderPackets();
+            });
+        }
 
-        this.elements.pauseBtn.addEventListener('click', () => {
-            this.paused = !this.paused;
-            this.elements.pauseBtn.textContent = this.paused ? '▶️' : '⏸️';
-            this.elements.pauseBtn.classList.toggle('active', this.paused);
-        });
+        if (this.elements.pauseBtn) {
+            this.elements.pauseBtn.addEventListener('click', () => {
+                this.paused = !this.paused;
+                this.elements.pauseBtn.textContent = this.paused ? '▶️' : '⏸️';
+                this.elements.pauseBtn.classList.toggle('active', this.paused);
+            });
+        }
 
-        this.elements.clearBtn.addEventListener('click', () => {
-            this.packets = [];
-            this.renderPackets();
-        });
+        if (this.elements.clearBtn) {
+            this.elements.clearBtn.addEventListener('click', () => {
+                this.packets = [];
+                this.renderPackets();
+            });
+        }
 
-        this.elements.connectionsToggle.addEventListener('click', () => {
-            this.elements.connectionsToggle.closest('.connections-section').classList.toggle('collapsed');
-        });
+        if (this.elements.timeWindow) {
+            this.elements.timeWindow.addEventListener('change', (e) => {
+                this.timeWindowMinutes = parseInt(e.target.value) || 0;
+                this.renderPackets();
+            });
+        }
+
+        if (this.elements.connectionsToggle) {
+            this.elements.connectionsToggle.addEventListener('click', () => {
+                this.elements.connectionsToggle.closest('.connections-section').classList.toggle('collapsed');
+            });
+        }
 
         // History events
         if (this.elements.historyToggle) {
@@ -121,6 +139,31 @@ class PiTrack {
                 }
             });
         }
+
+        // Quick filter buttons for history
+        document.querySelectorAll('.quick-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const days = parseInt(e.target.dataset.days);
+
+                // Remove active from all buttons
+                document.querySelectorAll('.quick-filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Set date range
+                const end = new Date();
+                const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+
+                if (this.elements.historyStart) {
+                    this.elements.historyStart.value = start.toISOString().slice(0, 16);
+                }
+                if (this.elements.historyEnd) {
+                    this.elements.historyEnd.value = end.toISOString().slice(0, 16);
+                }
+
+                this.historyPage = 0;
+                this.loadHistory();
+            });
+        });
     }
 
     connect() {
@@ -270,8 +313,20 @@ class PiTrack {
     }
 
     filterPackets(packets) {
-        if (!this.filter) return packets;
-        return packets.filter(p => this.matchesFilter(p));
+        let filtered = packets;
+
+        // Apply time window filter
+        if (this.timeWindowMinutes > 0) {
+            const cutoff = new Date(Date.now() - this.timeWindowMinutes * 60 * 1000);
+            filtered = filtered.filter(p => new Date(p.timestamp) >= cutoff);
+        }
+
+        // Apply text filter
+        if (this.filter) {
+            filtered = filtered.filter(p => this.matchesFilter(p));
+        }
+
+        return filtered;
     }
 
     matchesFilter(packet) {
@@ -317,30 +372,37 @@ class PiTrack {
     }
 
     renderProtocols() {
+        if (!this.elements.protocolCircles) return;
+
         const protocols = this.stats.protocolStats || {};
         const sorted = Object.entries(protocols)
             .sort((a, b) => b[1] - a[1])
-            .slice(0, 8);
+            .slice(0, 6);
 
         if (sorted.length === 0) {
-            this.elements.protocolList.innerHTML = '<div class="empty-state"><span>No data yet</span></div>';
+            this.elements.protocolCircles.innerHTML = '<div class="empty-state"><span>No data yet</span></div>';
             return;
         }
 
-        const maxValue = sorted[0]?.[1] || 1;
+        const total = sorted.reduce((acc, [, count]) => acc + count, 0);
+        const circumference = 2 * Math.PI * 24; // radius = 24
 
-        this.elements.protocolList.innerHTML = sorted.map(([proto, count]) => {
-            const percentage = (count / maxValue) * 100;
+        this.elements.protocolCircles.innerHTML = sorted.map(([proto, count]) => {
+            const percentage = Math.round((count / total) * 100);
+            const offset = circumference - (percentage / 100) * circumference;
             const protoClass = proto.toLowerCase();
             return `
-                <div class="list-item">
-                    <div class="list-item-info">
-                        <div class="list-item-name">${proto}</div>
-                        <div class="progress-bar">
-                            <div class="progress-fill ${protoClass}" style="width: ${percentage}%"></div>
-                        </div>
+                <div class="protocol-circle ${protoClass}">
+                    <div class="circle-progress">
+                        <svg viewBox="0 0 60 60">
+                            <circle class="bg" cx="30" cy="30" r="24"/>
+                            <circle class="progress" cx="30" cy="30" r="24" 
+                                stroke-dasharray="${circumference}" 
+                                stroke-dashoffset="${offset}"/>
+                        </svg>
+                        <span class="percentage">${percentage}%</span>
                     </div>
-                    <div class="list-item-value">${this.formatNumber(count)}</div>
+                    <span class="name">${proto}</span>
                 </div>
             `;
         }).join('');
