@@ -55,6 +55,7 @@ class PiTrack {
             // History elements
             historyTableBody: document.getElementById('history-table-body'),
             historyFilter: document.getElementById('history-filter'),
+            historyCountry: document.getElementById('history-country'),
             historyExclude: document.getElementById('history-exclude'),
             historyStart: document.getElementById('history-start'),
             historyEnd: document.getElementById('history-end'),
@@ -193,6 +194,28 @@ class PiTrack {
                 this.loadHistory();
             });
         });
+
+        // Country list click handler
+        if (this.elements.countryTableBody) {
+            this.elements.countryTableBody.addEventListener('click', (e) => {
+                const row = e.target.closest('tr');
+                if (!row || !row.dataset.country) return;
+
+                const countryCode = row.dataset.country;
+                if (countryCode === 'Local') return; // Don't filter by Local for now? Or maybe do. Local is unlikely to be a useful filter if it's just local traffic. But let's allow it.
+
+                // Switch to Live tab
+                const liveBtn = document.querySelector('.nav-icon-btn[data-tab="live"]');
+                if (liveBtn) liveBtn.click();
+
+                // Set filter
+                if (this.elements.packetFilter) {
+                    this.elements.packetFilter.value = countryCode;
+                    this.filter = countryCode.toLowerCase();
+                    this.renderPackets();
+                }
+            });
+        }
     }
 
     connect() {
@@ -546,7 +569,7 @@ class PiTrack {
             }
 
             return `
-                <tr>
+                <tr class="country-row" data-country="${code}" style="cursor: pointer;">
                     <td class="col-icon" style="font-size:1.2rem;">${flag}</td>
                     <td style="font-weight:500;">${name}</td>
                     <td class="col-time">${code}</td>
@@ -715,11 +738,13 @@ class PiTrack {
         if (!this.dbEnabled) return;
 
         const filter = this.elements.historyFilter?.value || '';
+        const country = this.elements.historyCountry?.value || '';
         const startTime = this.elements.historyStart?.value ? new Date(this.elements.historyStart.value).toISOString() : '';
         const endTime = this.elements.historyEnd?.value ? new Date(this.elements.historyEnd.value).toISOString() : '';
 
         let url = `/api/history?limit=${this.historyLimit}&offset=${this.historyPage * this.historyLimit}`;
         if (filter) url += `&filter=${encodeURIComponent(filter)}`;
+        if (country) url += `&country=${encodeURIComponent(country)}`;
         if (startTime) url += `&start=${encodeURIComponent(startTime)}`;
         if (endTime) url += `&end=${encodeURIComponent(endTime)}`;
 

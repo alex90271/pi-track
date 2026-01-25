@@ -208,7 +208,7 @@ func (d *Database) backgroundFlush() {
 }
 
 // QueryPackets retrieves packets from the database with optional filters
-func (d *Database) QueryPackets(limit int, offset int, filter string, excludeIPs []string, startTime, endTime *time.Time) ([]Packet, int, error) {
+func (d *Database) QueryPackets(limit int, offset int, filter string, country string, excludeIPs []string, startTime, endTime *time.Time) ([]Packet, int, error) {
 	// Build query
 	query := "SELECT id, timestamp, src_ip, dst_ip, src_port, dst_port, protocol, length, info, src_mac, dst_mac, application, src_hostname, dst_hostname, src_country, dst_country FROM packets WHERE 1=1"
 	countQuery := "SELECT COUNT(*) FROM packets WHERE 1=1"
@@ -232,6 +232,13 @@ func (d *Database) QueryPackets(limit int, offset int, filter string, excludeIPs
 		countQuery += filterClause
 		filterArg := "%" + filter + "%"
 		args = append(args, filterArg, filterArg, filterArg, filterArg, filterArg, filterArg, filterArg)
+	}
+
+	if country != "" {
+		countryClause := " AND (src_country = ? OR dst_country = ?)"
+		query += countryClause
+		countQuery += countryClause
+		args = append(args, country, country)
 	}
 
 	// Exclude specified IPs

@@ -805,7 +805,10 @@ func main() {
 				excludeIPs = strings.Split(exclude, ",")
 			}
 
-			packets, total, err := db.QueryPackets(limit, offset, filter, excludeIPs, startTime, endTime)
+			// Parse country filter
+			country := r.URL.Query().Get("country")
+
+			packets, total, err := db.QueryPackets(limit, offset, filter, country, excludeIPs, startTime, endTime)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
