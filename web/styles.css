@@ -663,50 +663,76 @@ body::before {
     font-weight: 500;
 }
 
-/* ===== Collapsible Sections ===== */
-.connections-section,
-.history-section {
-    background: var(--bg-card);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--border-color);
+/* ===== Tabs ===== */
+.tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 4px;
+    border-bottom: 1px solid var(--border-color);
     flex-shrink: 0;
 }
 
-.connections-section .panel-header,
-.history-section .panel-header {
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 10px 16px;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 500;
     cursor: pointer;
-    user-select: none;
+    border-bottom: 2px solid transparent;
+    transition: all var(--transition-fast);
 }
 
-.connections-section .panel-header:hover,
-.history-section .panel-header:hover {
+.tab-btn:hover {
+    color: var(--text-primary);
     background: var(--bg-hover);
 }
 
-.toggle-icon {
-    transition: transform var(--transition-normal);
+.tab-btn.active {
+    color: var(--accent-primary);
+    border-bottom-color: var(--accent-primary);
 }
 
-.connections-section.collapsed .toggle-icon,
-.history-section.collapsed .toggle-icon {
-    transform: rotate(-90deg);
-}
-
-.connections-content,
-.history-content {
-    max-height: 250px;
+/* ===== Tab Content ===== */
+.tab-content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
     overflow: hidden;
-    transition: max-height var(--transition-normal);
 }
 
-.connections-section.collapsed .connections-content,
-.history-section.collapsed .history-content {
-    max-height: 0;
+.tab-pane {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
 }
 
-.connections-table-container {
-    max-height: 200px;
+.tab-pane.active {
+    display: flex;
+}
+
+.tab-pane .panel {
+    height: 100%;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+}
+
+.connections-table-container,
+.history-table-container {
+    flex: 1;
     overflow: auto;
+    min-height: 0;
+    max-height: none;
+}
+
+/* Hide history info by default */
+.history-controls .history-info {
+    margin-left: auto;
 }
 
 /* ===== History ===== */

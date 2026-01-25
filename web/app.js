@@ -46,8 +46,6 @@ class PiTrack {
             protocolCircles: document.getElementById('protocol-circles'),
             talkerList: document.getElementById('talker-list'),
             appList: document.getElementById('app-list'),
-            connectionsToggle: document.getElementById('connections-toggle'),
-            connectionsContent: document.getElementById('connections-content'),
             connectionsTableBody: document.getElementById('connections-table-body'),
             // Database elements
             dbStatus: document.getElementById('db-status'),
@@ -55,9 +53,6 @@ class PiTrack {
             dbCard: document.getElementById('db-card'),
             dbPackets: document.getElementById('db-packets'),
             // History elements
-            historySection: document.getElementById('history-section'),
-            historyToggle: document.getElementById('history-toggle'),
-            historyContent: document.getElementById('history-content'),
             historyTableBody: document.getElementById('history-table-body'),
             historyFilter: document.getElementById('history-filter'),
             historyExclude: document.getElementById('history-exclude'),
@@ -101,18 +96,34 @@ class PiTrack {
             });
         }
 
-        if (this.elements.connectionsToggle) {
-            this.elements.connectionsToggle.addEventListener('click', () => {
-                this.elements.connectionsToggle.closest('.connections-section').classList.toggle('collapsed');
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetTab = e.target.dataset.tab;
+
+                // Update tab buttons
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Update tab panes
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+                document.getElementById(`tab-${targetTab}`).classList.add('active');
+
+                // Load data for specific tabs if needed
+                if (targetTab === 'history') {
+                    if (this.historyPage === 0 && (!this.packets || this.packets.length === 0)) {
+                        this.loadHistory();
+                    }
+                }
             });
+        });
+
+        // Initial history load
+        if (this.dbEnabled) {
+            this.loadHistory();
         }
 
         // History events
-        if (this.elements.historyToggle) {
-            this.elements.historyToggle.addEventListener('click', () => {
-                this.elements.historySection.classList.toggle('collapsed');
-            });
-        }
 
         if (this.elements.historySearchBtn) {
             this.elements.historySearchBtn.addEventListener('click', () => {
@@ -604,14 +615,6 @@ class PiTrack {
                     this.elements.dbPackets.textContent = this.formatNumber(info.totalPackets || 0);
                 }
 
-                if (this.elements.historySection) {
-                    this.elements.historySection.style.display = info.enabled ? 'block' : 'none';
-                    if (info.enabled) {
-                        // Start collapsed
-                        this.elements.historySection.classList.add('collapsed');
-                    }
-                }
-
                 // Refresh database stats periodically
                 if (info.enabled) {
                     setInterval(() => this.updateDbStats(), 10000);
@@ -619,9 +622,6 @@ class PiTrack {
             })
             .catch(err => {
                 console.error('Failed to check database status:', err);
-                if (this.elements.historySection) {
-                    this.elements.historySection.style.display = 'none';
-                }
             });
     }
 

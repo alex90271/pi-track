@@ -111,108 +111,118 @@
             </div>
         </div>
 
-        <!-- Packets Panel (Full Width) -->
-        <div class="panel packets-panel">
-            <div class="panel-header">
-                <h2>📋 Live Packets</h2>
-                <div class="panel-controls">
-                    <select id="time-window" class="time-select">
-                        <option value="1">Last 1 min</option>
-                        <option value="5">Last 5 min</option>
-                        <option value="10" selected>Last 10 min</option>
-                        <option value="30">Last 30 min</option>
-                        <option value="0">All</option>
-                    </select>
-                    <input type="text" class="filter-input" id="packet-filter" placeholder="Filter...">
-                    <button class="btn btn-icon" id="pause-btn" title="Pause">⏸️</button>
-                    <button class="btn btn-icon" id="clear-btn" title="Clear">🗑️</button>
-                </div>
-            </div>
-            <div class="packet-table-container">
-                <table class="packet-table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
-                            <th>Source</th>
-                            <th>Destination</th>
-                            <th>Protocol</th>
-                            <th>Len</th>
-                            <th>Info</th>
-                        </tr>
-                    </thead>
-                    <tbody id="packet-table-body">
-                    </tbody>
-                </table>
-            </div>
+        <!-- Tabs Navigation -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="live">Live Packets</button>
+            <button class="tab-btn" data-tab="connections">Connections</button>
+            <button class="tab-btn" data-tab="history">History</button>
         </div>
 
-        <!-- Connections Panel -->
-        <div class="connections-section collapsed">
-            <div class="panel-header collapsible" id="connections-toggle">
-                <h2>🔗 Active Connections</h2>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="connections-content" id="connections-content">
-                <div class="connections-table-container">
-                    <table class="connections-table">
-                        <thead>
-                            <tr>
-                                <th>Source</th>
-                                <th>Destination</th>
-                                <th>Protocol</th>
-                                <th>Packets</th>
-                                <th>Bytes</th>
-                                <th>Duration</th>
-                            </tr>
-                        </thead>
-                        <tbody id="connections-table-body">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- History Panel -->
-        <div class="history-section collapsed" id="history-section">
-            <div class="panel-header collapsible" id="history-toggle">
-                <h2>📚 Packet History</h2>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="history-content" id="history-content">
-                <div class="history-controls">
-                    <div class="quick-filters">
-                        <button class="btn quick-filter-btn" data-days="1">Last Day</button>
-                        <button class="btn quick-filter-btn" data-days="7">Last Week</button>
-                        <button class="btn quick-filter-btn" data-days="30">Last Month</button>
+        <!-- Tab Content Area -->
+        <div class="tab-content-area">
+            <!-- Live Packets Tab -->
+            <div class="tab-pane active" id="tab-live">
+                <div class="panel packets-panel">
+                    <div class="panel-header">
+                        <h2>📋 Live Packets</h2>
+                        <div class="panel-controls">
+                            <select id="time-window" class="time-select">
+                                <option value="1">Last 1 min</option>
+                                <option value="5">Last 5 min</option>
+                                <option value="10" selected>Last 10 min</option>
+                                <option value="30">Last 30 min</option>
+                                <option value="0">All</option>
+                            </select>
+                            <input type="text" class="filter-input" id="packet-filter" placeholder="Filter...">
+                            <button class="btn btn-icon" id="pause-btn" title="Pause">⏸️</button>
+                            <button class="btn btn-icon" id="clear-btn" title="Clear">🗑️</button>
+                        </div>
                     </div>
-                    <input type="text" class="filter-input" id="history-filter" placeholder="Search...">
-                    <input type="text" class="filter-input exclude-input" id="history-exclude"
-                        placeholder="Exclude IPs (comma-sep)" title="Comma-separated list of IPs to exclude">
-                    <input type="datetime-local" class="date-input" id="history-start">
-                    <input type="datetime-local" class="date-input" id="history-end">
-                    <button class="btn" id="history-search-btn">🔍 Search</button>
-                    <span class="history-info" id="history-info"></span>
+                    <div class="packet-table-container">
+                        <table class="packet-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Source</th>
+                                    <th>Destination</th>
+                                    <th>Protocol</th>
+                                    <th>Len</th>
+                                    <th>Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="packet-table-body">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="history-table-container">
-                    <table class="packet-table">
-                        <thead>
-                            <tr>
-                                <th>Time</th>
-                                <th>Source</th>
-                                <th>Destination</th>
-                                <th>Protocol</th>
-                                <th>Len</th>
-                                <th>Info</th>
-                            </tr>
-                        </thead>
-                        <tbody id="history-table-body">
-                        </tbody>
-                    </table>
+            </div>
+
+            <!-- Connections Tab -->
+            <div class="tab-pane" id="tab-connections">
+                <div class="panel connections-panel">
+                    <div class="panel-header">
+                        <h2>🔗 Active Connections</h2>
+                    </div>
+                    <div class="connections-table-container">
+                        <table class="connections-table">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th>Destination</th>
+                                    <th>Protocol</th>
+                                    <th>Packets</th>
+                                    <th>Bytes</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody id="connections-table-body">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <div class="pagination" id="history-pagination">
-                    <button class="btn" id="history-prev" disabled>← Prev</button>
-                    <span class="page-info" id="history-page-info">Page 1</span>
-                    <button class="btn" id="history-next">Next →</button>
+            </div>
+
+            <!-- History Tab -->
+            <div class="tab-pane" id="tab-history">
+                <div class="panel history-panel">
+                    <div class="panel-header">
+                        <h2>📚 Packet History</h2>
+                    </div>
+                    <div class="history-controls">
+                        <div class="quick-filters">
+                            <button class="btn quick-filter-btn" data-days="1">Last Day</button>
+                            <button class="btn quick-filter-btn" data-days="7">Last Week</button>
+                            <button class="btn quick-filter-btn" data-days="30">Last Month</button>
+                        </div>
+                        <input type="text" class="filter-input" id="history-filter" placeholder="Search...">
+                        <input type="text" class="filter-input exclude-input" id="history-exclude"
+                            placeholder="Exclude IPs (comma-sep)" title="Comma-separated list of IPs to exclude">
+                        <input type="datetime-local" class="date-input" id="history-start">
+                        <input type="datetime-local" class="date-input" id="history-end">
+                        <button class="btn" id="history-search-btn">🔍 Search</button>
+                        <span class="history-info" id="history-info"></span>
+                    </div>
+                    <div class="history-table-container">
+                        <table class="packet-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Source</th>
+                                    <th>Destination</th>
+                                    <th>Protocol</th>
+                                    <th>Len</th>
+                                    <th>Info</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="history-pagination">
+                        <button class="btn" id="history-prev" disabled>← Prev</button>
+                        <span class="page-info" id="history-page-info">Page 1</span>
+                        <button class="btn" id="history-next">Next →</button>
+                    </div>
                 </div>
             </div>
         </div>
