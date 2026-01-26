@@ -276,6 +276,23 @@ func (ps *PacketStore) GetStats() Stats {
 	stats := ps.stats
 	stats.TopTalkers = talkers
 	stats.CountryStats = countryStats // Assign the dynamically calculated map
+
+	// Deep copy maps to avoid race conditions during JSON marshaling
+	stats.ProtocolStats = make(map[string]int64, len(ps.stats.ProtocolStats))
+	for k, v := range ps.stats.ProtocolStats {
+		stats.ProtocolStats[k] = v
+	}
+
+	stats.ApplicationStats = make(map[string]int64, len(ps.stats.ApplicationStats))
+	for k, v := range ps.stats.ApplicationStats {
+		stats.ApplicationStats[k] = v
+	}
+
+	stats.ProcessStats = make(map[string]int64, len(ps.stats.ProcessStats))
+	for k, v := range ps.stats.ProcessStats {
+		stats.ProcessStats[k] = v
+	}
+
 	return stats
 }
 
