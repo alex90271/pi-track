@@ -112,6 +112,11 @@ class PiTrack {
             panelMaximizeBtn: document.getElementById('panel-maximize-btn'),
             panelExpandBtn: document.getElementById('panel-expand-btn'),
             fullscreenBtn: document.getElementById('fullscreen-btn'),
+            // Settings elements
+            nukeDbBtn: document.getElementById('nuke-db-btn'),
+            nukeStatus: document.getElementById('nuke-status'),
+            settingsDbSize: document.getElementById('settings-db-size'),
+            settingsDbPackets: document.getElementById('settings-db-packets'),
         };
     }
 
@@ -172,7 +177,8 @@ class PiTrack {
                     'live': 'Live Traffic',
                     'connections': 'Active Connections',
                     'history': 'Traffic Log',
-                    'countries': 'Geographic Distribution'
+                    'countries': 'Geographic Distribution',
+                    'settings': 'Admin Settings'
                 };
                 const titleEl = document.getElementById('page-title');
                 if (titleEl && titleMap[targetTab]) {
@@ -184,6 +190,8 @@ class PiTrack {
                     if (this.historyPage === 0 && (!this.packets || this.packets.length === 0)) {
                         this.loadHistory();
                     }
+                } else if (targetTab === 'settings') {
+                    this.loadSettings();
                 }
             });
         });
@@ -357,6 +365,11 @@ class PiTrack {
         // New: Save preferences on filter change
         if (this.elements.timeWindow) {
             this.elements.timeWindow.addEventListener('change', () => this.savePreferences());
+        }
+
+        // Settings Nuke DB
+        if (this.elements.nukeDbBtn) {
+            this.elements.nukeDbBtn.addEventListener('click', () => this.truncateDatabase());
         }
     }
 
@@ -1021,6 +1034,7 @@ class PiTrack {
             .then(res => res.json())
             .then(info => {
                 this.dbInfo = info;
+                this.updateSettingsUI(info);
             })
             .catch(() => { });
     }
@@ -1544,7 +1558,76 @@ class PiTrack {
                 console.log('Could not load countries:', err);
             });
     }
+
+    // Settings Methods
+    loadSettings() {
+        this.updateDbStats();
+    }
+
+    truncateDatabase() {
+        if (!confirm('Are you ABSOLUTELY sure? This will delete all your packet logs, statistics, and history. This cannot be undone.')) {
+            return;
+        }
+
+        const btn = this.elements.nukeDbBtn;
+        const status = this.elements.nukeStatus;
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Truncating...';
+        }
+        if (status) status.textContent = '';
+
+        fetch('/api/database/truncate', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    if (status) {
+                        status.textContent = 'Database cleared successfully!';
+                        status.style.color = 'var(--status-success)';
+                    }
+
+                    // Reset local state
+                    this.packets = [];
+                    this.stats = null;
+                    this.connections = [];
+                    this.historyTotal = 0;
+                    this.renderPackets();
+
+                    // Refresh stats
+                    this.updateDbStats();
+                } else {
+                    throw new Error(data.message || 'Unknown error');
+                }
+            })
+            .catch(err => {
+                if (status) {
+                    status.textContent = 'Error: ' + err.message;
+                    status.style.color = 'var(--status-danger)';
+                }
+            })
+            .finally(() => {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="bi bi-radioactive"></i> Truncate Database';
+                }
+            });
+    }
+
+    // Helper to update settings UI (called by updateDbStats)
+    updateSettingsUI(info) {
+        if (!this.elements.settingsDbSize) return;
+
+        if (info && info.enabled) {
+            this.elements.settingsDbSize.textContent = this.formatBytes(info.databaseSize);
+            this.elements.settingsDbPackets.textContent = this.formatNumber(info.totalPackets) + ' packets';
+        } else {
+            this.elements.settingsDbSize.textContent = 'Database disabled';
+            this.elements.settingsDbPackets.textContent = '-';
+        }
+    }
 }
+
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {

@@ -321,6 +321,25 @@ func (ps *PacketStore) GetConnections() []Connection {
 	return connections
 }
 
+// Clear resets the packet store
+func (ps *PacketStore) Clear() {
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	ps.packets = make([]Packet, 0, ps.maxPackets)
+	ps.stats = Stats{
+		ProtocolStats:    make(map[string]int64),
+		CountryStats:     make(map[string]int64),
+		ApplicationStats: make(map[string]int64),
+		ProcessStats:     make(map[string]int64),
+		StartTime:        time.Now(),
+	}
+	ps.ipStats = make(map[string]*ipTraffic)
+	ps.connections = make(map[string]*Connection)
+	ps.packetsWindow = make([]time.Time, 0)
+	ps.bytesWindow = make([]int, 0)
+}
+
 // Broadcast sends data to all connected WebSocket clients
 func (ps *PacketStore) Broadcast(messageType string, data interface{}) {
 	message := map[string]interface{}{
@@ -908,6 +927,29 @@ func main() {
 			}
 
 			json.NewEncoder(w).Encode(countries)
+		})
+
+		// Truncate database
+		http.HandleFunc("/api/database/truncate", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+
+			// Truncate DB
+			if err := db.Truncate(); err != nil {
+				log.Printf("Error truncating database: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			// Also clear memory store
+			store.Clear()
+
+			json.NewEncoder(w).Encode(map[string]string{"status": "ok", "message": "Database and memory cleared"})
 		})
 	} else {
 		// Database disabled placeholder

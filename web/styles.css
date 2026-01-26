@@ -328,10 +328,11 @@ body {
 }
 
 .mini-stat-val {
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 600;
     color: var(--text-primary);
     line-height: 1.2;
+    white-space: nowrap;
 }
 
 .mini-stat-label {

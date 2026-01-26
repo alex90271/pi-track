@@ -413,6 +413,48 @@ func (d *Database) GetDistinctCountries() ([]string, error) {
 	return countries, nil
 }
 
+// Truncate clears all data from the database
+func (d *Database) Truncate() error {
+	d.insertMu.Lock()
+	// Clear the memory batch queue first
+	d.batchQueue = d.batchQueue[:0]
+	d.insertMu.Unlock()
+
+	// Use a transaction
+	tx, err := d.db.Begin()
+	if err != nil {
+		return err
+	}
+
+	// Delete contents from tables
+	tables := []string{"packets", "sessions", "ip_stats"}
+	for _, table := range tables {
+		_, err := tx.Exec("DELETE FROM " + table)
+		if err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to truncate table %s: %v", table, err)
+		}
+		// Reset auto-increment counters
+		_, err = tx.Exec("DELETE FROM sqlite_sequence WHERE name=?", table)
+		if err != nil {
+			// Not critical if this fails
+			log.Printf("Warning: failed to reset sequence for %s: %v", table, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Optimize database to reclaim space
+	_, err = d.db.Exec("VACUUM")
+	if err != nil {
+		log.Printf("Warning: bloat vacuum failed: %v", err)
+	}
+
+	return nil
+}
+
 // GetDatabaseInfo returns info about the database
 func (d *Database) GetDatabaseInfo() (map[string]interface{}, error) {
 	info := map[string]interface{}{}

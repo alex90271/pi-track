@@ -31,6 +31,9 @@
             <div class="nav-icon-btn" data-tab="countries" title="Countries">
                 <i class="bi bi-globe"></i>
             </div>
+            <div class="nav-icon-btn" data-tab="settings" title="Admin Settings">
+                <i class="bi bi-gear-fill"></i>
+            </div>
 
 
 
@@ -274,6 +277,45 @@
                         </thead>
                         <tbody id="country-table-body"></tbody>
                     </table>
+                </div>
+            </div>
+
+
+
+            <!-- Settings View -->
+            <div class="view-pane" id="tab-settings">
+                <div class="settings-container" style="padding: 2rem; max-width: 800px; margin: 0 auto;">
+                    <div class="panel-section">
+                        <div class="section-label" style="font-size: 1.2rem; margin-bottom: 1rem;">Database Management
+                        </div>
+                        <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                            Manage your packet capture database. Truncating the database will permanently delete all
+                            stored
+                            packet logs, statistics, and session history.
+                            This action cannot be undone.
+                        </p>
+
+                        <div class="db-stats-card"
+                            style="background: var(--bg-secondary); padding: 1.5rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                            <h4 style="margin-top: 0; margin-bottom: 1rem;">Current Status</h4>
+                            <div class="db-stats-grid" id="settings-db-stats">
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <i class="bi bi-hdd-fill"></i> <span id="settings-db-size">Checking...</span>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <i class="bi bi-layers-fill"></i> <span id="settings-db-packets">Checking...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <button class="danger-btn" id="nuke-db-btn"
+                                style="padding: 0.75rem 1.5rem; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-weight: 500;">
+                                <i class="bi bi-radioactive"></i> Truncate Database
+                            </button>
+                            <span id="nuke-status" style="font-size: 0.9rem;"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
