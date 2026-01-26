@@ -404,6 +404,42 @@ body {
     background-color: var(--bg-app);
 }
 
+/* Resizable Columns */
+.dense-table th {
+    position: relative;
+    resize: horizontal;
+    overflow: hidden;
+    min-width: 60px;
+}
+
+.dense-table th::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 25%;
+    height: 50%;
+    width: 3px;
+    background: var(--border-color);
+    cursor: col-resize;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    border-radius: 2px;
+}
+
+.dense-table th:hover::after {
+    opacity: 1;
+}
+
+.dense-table th:active::after {
+    background: var(--accent-blue);
+    opacity: 1;
+}
+
+/* Make table layout fixed for better resize behavior */
+.dense-table.resizable {
+    table-layout: fixed;
+}
+
 /* Column Specifics */
 .col-icon {
     width: 32px;
