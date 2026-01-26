@@ -89,6 +89,75 @@ body {
     grid-template-columns: var(--sidebar-width) var(--panel-width) 1fr;
     height: 100vh;
     width: 100vw;
+    transition: grid-template-columns 0.25s ease;
+}
+
+/* When panel is collapsed, grid adjusts */
+.app-container.panel-collapsed {
+    grid-template-columns: var(--sidebar-width) 0 1fr;
+}
+
+/* When panel is maximized, filter panel takes full width */
+.app-container.panel-maximized {
+    grid-template-columns: var(--sidebar-width) 1fr 0;
+}
+
+.app-container.panel-maximized .filter-panel {
+    width: 100%;
+}
+
+.app-container.panel-maximized .main-content {
+    opacity: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+/* Remove text truncation when maximized */
+.app-container.panel-maximized .list-txt {
+    max-width: none;
+}
+
+/* Standard Icon Button */
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 1rem;
+}
+
+.icon-btn:hover {
+    background: var(--bg-app);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+/* Expand Button (Specifics) */
+.panel-expand-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: none;
+    font-size: 1rem;
+    background: var(--accent-blue-light);
+    color: var(--accent-blue);
+}
+
+.panel-expand-btn:hover {
+    background: var(--accent-blue);
+    color: white;
 }
 
 /* ===== 1. Icon Sidebar (Leftmost) ===== */
@@ -158,11 +227,31 @@ body {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    overflow-x: hidden;
+    width: var(--panel-width);
+    transition: width 0.25s ease, min-width 0.25s ease;
+    min-width: var(--panel-width);
+}
+
+.filter-panel.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+}
+
+.filter-panel.collapsed .panel-section,
+.filter-panel.collapsed .filter-header>div:first-child {
+    opacity: 0;
+    pointer-events: none;
 }
 
 .filter-header {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    min-height: 60px;
 }
 
 .filter-title {
@@ -175,6 +264,31 @@ body {
 .filter-subtitle {
     font-size: 0.75rem;
     color: var(--text-secondary);
+}
+
+/* Panel Collapse Button */
+.panel-collapse-btn {
+    background: none;
+    border: none;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    flex-shrink: 0;
+}
+
+.panel-collapse-btn:hover {
+    background: var(--bg-app);
+    color: var(--text-primary);
+}
+
+.filter-panel.collapsed .panel-collapse-btn {
+    transform: rotate(180deg);
 }
 
 .panel-section {

@@ -32,6 +32,8 @@
                 <i class="bi bi-globe"></i>
             </div>
 
+
+
             <div style="margin-top: auto;"></div>
             <button class="theme-toggle" id="theme-toggle" title="Toggle Dark Mode">
                 <i class="bi bi-moon-fill"></i>
@@ -45,10 +47,20 @@
         </aside>
 
         <!-- Col 2: Filter/Nav Panel -->
-        <aside class="filter-panel">
+        <aside class="filter-panel" id="filter-panel">
             <div class="filter-header">
-                <div class="filter-title">Traffic Inspector</div>
-                <div class="filter-subtitle" id="current-interface">eth0</div>
+                <div>
+                    <div class="filter-title">Traffic Inspector</div>
+                    <div class="filter-subtitle" id="current-interface">eth0</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="panel-collapse-btn" id="panel-maximize-btn" title="Maximize Inspector">
+                        <i class="bi bi-arrows-angle-expand"></i>
+                    </button>
+                    <button class="panel-collapse-btn" id="panel-collapse-btn" title="Collapse Panel">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                </div>
             </div>
 
             <!-- Global Stats Section -->
@@ -135,11 +147,20 @@
         <main class="main-content">
             <!-- Header -->
             <header class="content-header">
-                <div>
-                    <div class="content-title" id="page-title">Live Traffic</div>
-                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Real-time packet inspection</div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <!-- Expand Panel Button (shown when collapsed) -->
+                    <button class="panel-expand-btn" id="panel-expand-btn" title="Expand Panel" style="display: none;">
+                        <i class="bi bi-layout-sidebar"></i>
+                    </button>
+                    <div>
+                        <div class="content-title" id="page-title">Live Traffic</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">Real-time packet inspection</div>
+                    </div>
                 </div>
                 <div class="content-actions" style="gap: 1rem;">
+                    <button class="icon-btn" id="fullscreen-btn" title="Toggle Fullscreen">
+                        <i class="bi bi-arrows-fullscreen"></i>
+                    </button>
                     <div class="live-indicator" id="live-indicator">
                         <span class="dot"></span>
                         <span>Live</span>

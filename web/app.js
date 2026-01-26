@@ -107,7 +107,11 @@ class PiTrack {
             packetDetails: document.getElementById('packet-details'),
             exportCsvBtn: document.getElementById('export-csv-btn'),
             panelToggle: document.getElementById('panel-toggle'),
-            filterPanel: document.querySelector('.filter-panel'),
+            filterPanel: document.getElementById('filter-panel'),
+            panelCollapseBtn: document.getElementById('panel-collapse-btn'),
+            panelMaximizeBtn: document.getElementById('panel-maximize-btn'),
+            panelExpandBtn: document.getElementById('panel-expand-btn'),
+            fullscreenBtn: document.getElementById('fullscreen-btn'),
         };
     }
 
@@ -187,6 +191,34 @@ class PiTrack {
         // Initial history load
         if (this.dbEnabled) {
             this.loadHistory();
+        }
+
+        // Panel collapse toggle
+        if (this.elements.panelCollapseBtn && this.elements.filterPanel) {
+            this.elements.panelCollapseBtn.addEventListener('click', () => {
+                this.togglePanel();
+            });
+        }
+
+        if (this.elements.panelMaximizeBtn) {
+            this.elements.panelMaximizeBtn.addEventListener('click', () => {
+                this.togglePanelMaximize();
+            });
+        }
+
+        if (this.elements.panelExpandBtn) {
+            this.elements.panelExpandBtn.addEventListener('click', () => {
+                this.togglePanel();
+            });
+        }
+
+
+
+        // Fullscreen toggle
+        if (this.elements.fullscreenBtn) {
+            this.elements.fullscreenBtn.addEventListener('click', () => {
+                this.toggleFullscreen();
+            });
         }
 
         // History events
@@ -619,7 +651,7 @@ class PiTrack {
             return `
                 <div class="list-row clickable" data-filter="${talker.ip}" title="Click to filter by ${talker.ip}">
                     <div class="list-txt">
-                        <span class="flag-icon">${countryFlag}</span>${this.truncate(displayName, 20)}
+                        <span class="flag-icon">${countryFlag}</span>${displayName}
                     </div>
                     <div class="list-val">${this.formatBytes(talker.bytes)}</div>
                 </div>
@@ -661,7 +693,7 @@ class PiTrack {
             return `
                 <div class="list-row clickable" data-filter="${name}" title="Click to filter by ${name}">
                     <div class="list-txt">
-                        <i class="bi bi-cpu" style="font-size: 0.8rem; margin-right: 5px;"></i>${this.truncate(name, 20)}
+                        <i class="bi bi-cpu" style="font-size: 0.8rem; margin-right: 5px;"></i>${name}
                     </div>
                     <div class="list-val">${this.formatBytes(bytes)}</div>
                 </div>
@@ -1104,6 +1136,73 @@ class PiTrack {
         this.savePreferences();
     }
 
+    togglePanel() {
+        const appContainer = document.querySelector('.app-container');
+        const panelExpandBtn = document.getElementById('panel-expand-btn');
+
+        if (this.elements.filterPanel) {
+            this.elements.filterPanel.classList.toggle('collapsed');
+            this.panelCollapsed = this.elements.filterPanel.classList.contains('collapsed');
+        }
+
+        // Toggle grid layout
+        if (appContainer) {
+            appContainer.classList.toggle('panel-collapsed', this.panelCollapsed);
+        }
+
+        // Show/hide expand button in sidebar
+        if (panelExpandBtn) {
+            panelExpandBtn.style.display = this.panelCollapsed ? 'flex' : 'none';
+        }
+
+        this.savePreferences();
+    }
+
+    togglePanelMaximize() {
+        const appContainer = document.querySelector('.app-container');
+        this.panelMaximized = !this.panelMaximized;
+
+        if (appContainer) {
+            appContainer.classList.toggle('panel-maximized', this.panelMaximized);
+        }
+
+        // Update icon
+        if (this.elements.panelMaximizeBtn) {
+            const icon = this.elements.panelMaximizeBtn.querySelector('i');
+            if (icon) {
+                icon.className = this.panelMaximized ? 'bi bi-arrows-angle-contract' : 'bi bi-arrows-angle-expand';
+            }
+            this.elements.panelMaximizeBtn.title = this.panelMaximized ? 'Restore View' : 'Maximize Inspector';
+        }
+
+        // If maximizing, ensure not collapsed
+        if (this.panelMaximized && this.panelCollapsed) {
+            this.togglePanel(); // Uncollapse
+        }
+    }
+
+    toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+            });
+            // Update icon
+            if (this.elements.fullscreenBtn) {
+                this.elements.fullscreenBtn.innerHTML = '<i class="bi bi-fullscreen-exit"></i>';
+                this.elements.fullscreenBtn.title = 'Exit Fullscreen';
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            // Update icon
+            if (this.elements.fullscreenBtn) {
+                this.elements.fullscreenBtn.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
+                this.elements.fullscreenBtn.title = 'Toggle Fullscreen';
+            }
+        }
+    }
+
     applyTheme() {
         document.documentElement.setAttribute('data-theme', this.theme);
         if (this.elements.themeToggle) {
@@ -1152,13 +1251,26 @@ class PiTrack {
             const tabBtn = document.querySelector(`.nav-icon-btn[data-tab="${prefs.activeTab}"]`);
             if (tabBtn) tabBtn.click();
         }
+
+        // Apply panel collapsed state
+        if (prefs.panelCollapsed && this.elements.filterPanel) {
+            this.elements.filterPanel.classList.add('collapsed');
+            this.panelCollapsed = true;
+
+            // Also update grid and expand button
+            const appContainer = document.querySelector('.app-container');
+            const panelExpandBtn = document.getElementById('panel-expand-btn');
+            if (appContainer) appContainer.classList.add('panel-collapsed');
+            if (panelExpandBtn) panelExpandBtn.style.display = 'flex';
+        }
     }
 
     savePreferences() {
         const prefs = {
             theme: this.theme,
             timeWindow: this.timeWindowMinutes,
-            activeTab: document.querySelector('.nav-icon-btn.active[data-tab]')?.dataset.tab || 'live'
+            activeTab: document.querySelector('.nav-icon-btn.active[data-tab]')?.dataset.tab || 'live',
+            panelCollapsed: this.panelCollapsed || false
         };
         localStorage.setItem('pitrack-prefs', JSON.stringify(prefs));
         localStorage.setItem('pitrack-theme', this.theme);
