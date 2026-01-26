@@ -386,6 +386,33 @@ func (d *Database) GetStats(startTime, endTime *time.Time) (map[string]interface
 	return stats, nil
 }
 
+// GetDistinctCountries returns all unique country codes from the database
+func (d *Database) GetDistinctCountries() ([]string, error) {
+	query := `
+		SELECT DISTINCT country FROM (
+			SELECT src_country as country FROM packets WHERE src_country IS NOT NULL AND src_country != ''
+			UNION
+			SELECT dst_country as country FROM packets WHERE dst_country IS NOT NULL AND dst_country != ''
+		) ORDER BY country
+	`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	countries := []string{}
+	for rows.Next() {
+		var country string
+		if err := rows.Scan(&country); err == nil && country != "" {
+			countries = append(countries, country)
+		}
+	}
+
+	return countries, nil
+}
+
 // GetDatabaseInfo returns info about the database
 func (d *Database) GetDatabaseInfo() (map[string]interface{}, error) {
 	info := map[string]interface{}{}

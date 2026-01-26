@@ -18,6 +18,34 @@ class PiTrack {
         this.historyLimit = 100;
         this.historyTotal = 0;
 
+        // New: Theme and preferences
+        this.theme = localStorage.getItem('pitrack-theme') || 'light';
+
+        // New: Traffic chart
+        this.trafficChart = null;
+        this.trafficData = {
+            labels: [],
+            packetsPerSec: [],
+            bytesPerSec: []
+        };
+        this.maxChartPoints = 30;
+
+        // New: Auto-scroll control
+        this.userScrolled = false;
+
+        // New: Selected packet for modal
+        this.selectedPacket = null;
+
+        // New: Common port names
+        this.portNames = {
+            20: 'FTP-D', 21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP',
+            53: 'DNS', 67: 'DHCP', 68: 'DHCP', 80: 'HTTP', 110: 'POP3',
+            123: 'NTP', 143: 'IMAP', 443: 'HTTPS', 465: 'SMTPS', 587: 'SMTP',
+            993: 'IMAPS', 995: 'POP3S', 3306: 'MySQL', 3389: 'RDP',
+            5432: 'PostgreSQL', 6379: 'Redis', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt',
+            27017: 'MongoDB'
+        };
+
         this.init();
     }
 
@@ -27,6 +55,10 @@ class PiTrack {
         this.connect();
         this.startUptimeTimer();
         this.checkDatabase();
+        this.loadPreferences();
+        this.initTrafficChart();
+        this.bindKeyboardShortcuts();
+        this.loadCountries();
     }
 
     bindElements() {
@@ -49,10 +81,10 @@ class PiTrack {
             appList: document.getElementById('app-list'),
             connectionsTableBody: document.getElementById('connections-table-body'),
             // Database elements
-            dbStatus: document.getElementById('db-status'),
-            dbText: document.getElementById('db-text'),
-            dbCard: document.getElementById('db-card'),
-            dbPackets: document.getElementById('db-packets'),
+            dbBtn: document.getElementById('db-btn'),
+            dbModal: document.getElementById('db-modal'),
+            dbModalClose: document.getElementById('db-modal-close'),
+            dbDetails: document.getElementById('db-details'),
             // History elements
             historyTableBody: document.getElementById('history-table-body'),
             historyFilter: document.getElementById('history-filter'),
@@ -66,6 +98,16 @@ class PiTrack {
             historyNext: document.getElementById('history-next'),
             historyPageInfo: document.getElementById('history-page-info'),
             countryTableBody: document.getElementById('country-table-body'),
+            // New: Theme and UI elements
+            themeToggle: document.getElementById('theme-toggle'),
+            liveIndicator: document.getElementById('live-indicator'),
+            trafficChart: document.getElementById('traffic-chart'),
+            packetModal: document.getElementById('packet-modal'),
+            modalClose: document.getElementById('modal-close'),
+            packetDetails: document.getElementById('packet-details'),
+            exportCsvBtn: document.getElementById('export-csv-btn'),
+            panelToggle: document.getElementById('panel-toggle'),
+            filterPanel: document.querySelector('.filter-panel'),
         };
     }
 
@@ -92,12 +134,16 @@ class PiTrack {
             });
         }
 
-        if (this.elements.timeWindow) {
-            this.elements.timeWindow.addEventListener('change', (e) => {
-                this.timeWindowMinutes = parseInt(e.target.value) || 0;
+        // Time pill buttons
+        document.querySelectorAll('.time-pill').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.time-pill').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                this.timeWindowMinutes = parseInt(e.target.dataset.minutes) || 10;
                 this.renderPackets();
+                this.savePreferences();
             });
-        }
+        });
 
         // Tab switching
         document.querySelectorAll('.nav-icon-btn[data-tab]').forEach(btn => {
@@ -217,6 +263,69 @@ class PiTrack {
                 }
             });
         }
+
+        // New: Theme toggle
+        if (this.elements.themeToggle) {
+            this.elements.themeToggle.addEventListener('click', () => this.toggleTheme());
+        }
+
+        // New: Update pause state UI (live indicator and table wrapper)
+        if (this.elements.pauseBtn) {
+            const originalHandler = this.elements.pauseBtn.onclick;
+            this.elements.pauseBtn.addEventListener('click', () => {
+                this.updatePauseUI();
+                this.savePreferences();
+            });
+        }
+
+        // New: Modal close handlers
+        if (this.elements.modalClose) {
+            this.elements.modalClose.addEventListener('click', () => this.closePacketModal());
+        }
+        if (this.elements.packetModal) {
+            this.elements.packetModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.packetModal) {
+                    this.closePacketModal();
+                }
+            });
+        }
+
+        // New: Export CSV button
+        if (this.elements.exportCsvBtn) {
+            this.elements.exportCsvBtn.addEventListener('click', () => this.exportToCsv());
+        }
+
+        // New: Panel toggle (responsive)
+        if (this.elements.panelToggle && this.elements.filterPanel) {
+            this.elements.panelToggle.addEventListener('click', () => {
+                this.elements.filterPanel.classList.toggle('open');
+            });
+        }
+
+        // New: Packet table row click for detail modal
+        if (this.elements.packetTableBody) {
+            this.elements.packetTableBody.addEventListener('click', (e) => {
+                const row = e.target.closest('tr');
+                if (row && row.dataset.packetIndex !== undefined) {
+                    const index = parseInt(row.dataset.packetIndex);
+                    this.showPacketDetail(this.packets[index]);
+                }
+            });
+        }
+
+        // New: Smart auto-scroll detection
+        const tableWrapper = this.elements.packetTableBody?.closest('.table-wrapper');
+        if (tableWrapper) {
+            tableWrapper.addEventListener('scroll', () => {
+                const isAtBottom = tableWrapper.scrollHeight - tableWrapper.scrollTop <= tableWrapper.clientHeight + 50;
+                this.userScrolled = !isAtBottom;
+            });
+        }
+
+        // New: Save preferences on filter change
+        if (this.elements.timeWindow) {
+            this.elements.timeWindow.addEventListener('change', () => this.savePreferences());
+        }
     }
 
     connect() {
@@ -292,8 +401,15 @@ class PiTrack {
     }
 
     setConnectionStatus(status, text) {
-        this.elements.connectionStatus.className = `connection-status ${status}`;
-        this.elements.connectionStatus.querySelector('.status-text').textContent = text;
+        if (!this.elements.connectionStatus) return;
+        this.elements.connectionStatus.className = `nav-icon-btn ${status}`;
+        this.elements.connectionStatus.title = text;
+
+        // Update icon color based on status
+        const icon = this.elements.connectionStatus.querySelector('i');
+        if (icon) {
+            icon.style.color = status === 'connected' ? 'var(--status-success)' : 'var(--status-danger)';
+        }
     }
 
     renderPackets() {
@@ -327,8 +443,20 @@ class PiTrack {
         if (!this.matchesFilter(packet)) return;
 
         const row = document.createElement('tr');
-        // Proto-color logic handled differently now, but can keep for reference or remove
-        // row.className = `protocol-${packet.protocol.toLowerCase()}`;
+
+        // Add animation class for new rows and data attribute for modal
+        if (append) {
+            row.className = 'new-row';
+            // Remove animation class after animation completes
+            setTimeout(() => row.classList.remove('new-row'), 500);
+        }
+
+        // Store packet index for detail modal
+        const packetIndex = this.packets.indexOf(packet);
+        if (packetIndex >= 0) {
+            row.dataset.packetIndex = packetIndex;
+            row.style.cursor = 'pointer';
+        }
 
         const time = new Date(packet.timestamp);
         const timeStr = time.toLocaleTimeString('en-US', {
@@ -358,10 +486,9 @@ class PiTrack {
                 this.elements.packetTableBody.removeChild(this.elements.packetTableBody.firstChild);
             }
 
-            // Auto-scroll to bottom - Only if near bottom? Or just always for now
-            if (!this.paused) {
+            // Smart auto-scroll - only scroll if user hasn't scrolled up
+            if (!this.paused && !this.userScrolled) {
                 const container = this.elements.packetTableBody.closest('.table-wrapper');
-                // Check if user is scrolling up? For now simple auto-scroll
                 if (container) container.scrollTop = container.scrollHeight;
             }
         } else {
@@ -434,6 +561,9 @@ class PiTrack {
 
         // Render countries
         this.renderCountries();
+
+        // Update traffic chart
+        this.updateTrafficChart();
     }
 
     renderProtocols() {
@@ -486,16 +616,30 @@ class PiTrack {
         this.elements.talkerList.innerHTML = talkers.slice(0, 10).map(talker => {
             const displayName = talker.hostname || talker.ip;
             const countryFlag = talker.country ? this.getCountryFlag(talker.country) : '';
-            // Dense list row
             return `
-                <div class="list-row">
-                    <div class="list-txt" title="${talker.ip}">
+                <div class="list-row clickable" data-filter="${talker.ip}" title="Click to filter by ${talker.ip}">
+                    <div class="list-txt">
                         <span class="flag-icon">${countryFlag}</span>${this.truncate(displayName, 20)}
                     </div>
                     <div class="list-val">${this.formatBytes(talker.bytes)}</div>
                 </div>
             `;
         }).join('');
+
+        // Add click handlers for filtering
+        this.elements.talkerList.querySelectorAll('.clickable').forEach(el => {
+            el.addEventListener('click', () => {
+                const filterValue = el.dataset.filter;
+                if (this.elements.packetFilter && filterValue) {
+                    this.elements.packetFilter.value = filterValue;
+                    this.filter = filterValue.toLowerCase();
+                    this.renderPackets();
+                    // Switch to live tab
+                    const liveBtn = document.querySelector('.nav-icon-btn[data-tab="live"]');
+                    if (liveBtn) liveBtn.click();
+                }
+            });
+        });
     }
 
     renderProcesses() {
@@ -515,8 +659,8 @@ class PiTrack {
         this.elements.processList.innerHTML = sorted.slice(0, 10).map(([name, bytes]) => {
             const percentage = Math.round((bytes / maxBytes) * 100);
             return `
-                <div class="list-row">
-                    <div class="list-txt" title="${name}">
+                <div class="list-row clickable" data-filter="${name}" title="Click to filter by ${name}">
+                    <div class="list-txt">
                         <i class="bi bi-cpu" style="font-size: 0.8rem; margin-right: 5px;"></i>${this.truncate(name, 20)}
                     </div>
                     <div class="list-val">${this.formatBytes(bytes)}</div>
@@ -526,6 +670,21 @@ class PiTrack {
                 </div>
             `;
         }).join('');
+
+        // Add click handlers for filtering
+        this.elements.processList.querySelectorAll('.clickable').forEach(el => {
+            el.addEventListener('click', () => {
+                const filterValue = el.dataset.filter;
+                if (this.elements.packetFilter && filterValue) {
+                    this.elements.packetFilter.value = filterValue;
+                    this.filter = filterValue.toLowerCase();
+                    this.renderPackets();
+                    // Switch to live tab
+                    const liveBtn = document.querySelector('.nav-icon-btn[data-tab="live"]');
+                    if (liveBtn) liveBtn.click();
+                }
+            });
+        });
     }
 
     renderApplications() {
@@ -665,13 +824,12 @@ class PiTrack {
     }
 
     getCountryFlag(countryCode) {
-        if (!countryCode || countryCode === 'Local') return '';
-        // Convert country code to flag emoji
-        const codePoints = countryCode
-            .toUpperCase()
-            .split('')
-            .map(char => 127397 + char.charCodeAt(0));
-        return String.fromCodePoint(...codePoints);
+        if (!countryCode || countryCode === 'Local') {
+            return '<i class="bi bi-house-fill" style="color: var(--text-muted);" title="Local"></i>';
+        }
+        // Return flag-icons CSS class for proper SVG flags
+        const code = countryCode.toLowerCase();
+        return `<span class="fi fi-${code}" title="${countryCode}"></span>`;
     }
 
     formatNumber(num) {
@@ -717,32 +875,13 @@ class PiTrack {
         fetch('/api/database')
             .then(res => res.json())
             .then(info => {
+                this.dbInfo = info;
                 this.dbEnabled = info.enabled;
 
-                if (this.elements.dbStatus) {
-                    this.elements.dbStatus.classList.toggle('enabled', info.enabled);
-                    this.elements.dbStatus.classList.toggle('disabled', !info.enabled);
-                }
-
-                if (this.elements.dbText) {
-                    if (info.enabled) {
-                        const size = this.formatBytes(info.databaseSize || 0);
-                        const filename = info.path ? info.path.split('/').pop() : 'DB';
-                        this.elements.dbText.innerHTML = `<div style="display:flex; flex-direction:column; line-height:1.2; font-size:0.65rem;"><span>${filename}</span><span>${size}</span></div>`;
-                        // Remove icon look if we want text, or keep icon alongside? 
-                        // The container is a nav-icon-btn (40x40). 
-                        // Let's replace the icon content with this small stack.
-                    } else {
-                        this.elements.dbText.textContent = 'OFF';
-                    }
-                }
-
-                if (this.elements.dbCard) {
-                    this.elements.dbCard.style.display = info.enabled ? 'flex' : 'none';
-                }
-
-                if (this.elements.dbPackets && info.enabled) {
-                    this.elements.dbPackets.textContent = this.formatNumber(info.totalPackets || 0);
+                // Update icon state
+                if (this.elements.dbBtn) {
+                    this.elements.dbBtn.classList.toggle('active', info.enabled);
+                    this.elements.dbBtn.style.opacity = info.enabled ? '1' : '0.5';
                 }
 
                 // Refresh database stats periodically
@@ -753,20 +892,103 @@ class PiTrack {
             .catch(err => {
                 console.error('Failed to check database status:', err);
             });
+
+        // Bind modal handlers
+        if (this.elements.dbBtn) {
+            this.elements.dbBtn.addEventListener('click', () => this.showDatabaseModal());
+        }
+        if (this.elements.dbModalClose) {
+            this.elements.dbModalClose.addEventListener('click', () => this.closeDatabaseModal());
+        }
+        if (this.elements.dbModal) {
+            this.elements.dbModal.addEventListener('click', (e) => {
+                if (e.target === this.elements.dbModal) {
+                    this.closeDatabaseModal();
+                }
+            });
+        }
+    }
+
+    showDatabaseModal() {
+        if (!this.elements.dbModal || !this.elements.dbDetails) return;
+
+        // Fetch fresh data
+        fetch('/api/database')
+            .then(res => res.json())
+            .then(info => {
+                if (!info.enabled) {
+                    this.elements.dbDetails.innerHTML = `
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-x-circle"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">Status</div>
+                                <div class="db-stat-value">Database Disabled</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const filename = info.path ? info.path.split('/').pop() : 'Unknown';
+                    const size = this.formatBytes(info.databaseSize || 0);
+                    const packets = this.formatNumber(info.totalPackets || 0);
+                    const earliest = info.earliestPacket ? new Date(info.earliestPacket).toLocaleString() : 'N/A';
+                    const latest = info.latestPacket ? new Date(info.latestPacket).toLocaleString() : 'N/A';
+
+                    this.elements.dbDetails.innerHTML = `
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-file-earmark"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">File</div>
+                                <div class="db-stat-value">${filename}</div>
+                            </div>
+                        </div>
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-hdd"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">Size</div>
+                                <div class="db-stat-value">${size}</div>
+                            </div>
+                        </div>
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-box"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">Total Packets</div>
+                                <div class="db-stat-value">${packets}</div>
+                            </div>
+                        </div>
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-clock-history"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">Earliest Packet</div>
+                                <div class="db-stat-value" style="font-size: 0.85rem;">${earliest}</div>
+                            </div>
+                        </div>
+                        <div class="db-stat-item">
+                            <div class="db-stat-icon"><i class="bi bi-clock"></i></div>
+                            <div class="db-stat-info">
+                                <div class="db-stat-label">Latest Packet</div>
+                                <div class="db-stat-value" style="font-size: 0.85rem;">${latest}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+                this.elements.dbModal.classList.add('active');
+            })
+            .catch(err => {
+                console.error('Failed to fetch database info:', err);
+            });
+    }
+
+    closeDatabaseModal() {
+        if (this.elements.dbModal) {
+            this.elements.dbModal.classList.remove('active');
+        }
     }
 
     updateDbStats() {
         fetch('/api/database')
             .then(res => res.json())
             .then(info => {
-                if (this.elements.dbPackets && info.enabled) {
-                    this.elements.dbPackets.textContent = this.formatNumber(info.totalPackets || 0);
-                }
-                if (this.elements.dbText && info.enabled) {
-                    const size = this.formatBytes(info.databaseSize || 0);
-                    const filename = info.path ? info.path.split('/').pop() : 'DB';
-                    this.elements.dbText.innerHTML = `<div style="display:flex; flex-direction:column; line-height:1.2; font-size:0.65rem;"><span>${filename}</span><span>${size}</span></div>`;
-                }
+                this.dbInfo = info;
             })
             .catch(() => { });
     }
@@ -871,6 +1093,344 @@ class PiTrack {
         if (this.elements.historyNext) {
             this.elements.historyNext.disabled = currentPage >= totalPages;
         }
+    }
+
+    // ===== NEW METHODS =====
+
+    // Theme Management
+    toggleTheme() {
+        this.theme = this.theme === 'light' ? 'dark' : 'light';
+        this.applyTheme();
+        this.savePreferences();
+    }
+
+    applyTheme() {
+        document.documentElement.setAttribute('data-theme', this.theme);
+        if (this.elements.themeToggle) {
+            const icon = this.elements.themeToggle.querySelector('i');
+            if (icon) {
+                icon.className = this.theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+            }
+        }
+        // Update chart colors for dark mode
+        if (this.trafficChart) {
+            this.updateChartTheme();
+        }
+    }
+
+    updateChartTheme() {
+        const isDark = this.theme === 'dark';
+        const textColor = isDark ? '#8b949e' : '#5e6673';
+        const gridColor = isDark ? '#30363d' : '#e5e7eb';
+
+        this.trafficChart.options.scales.x.ticks.color = textColor;
+        this.trafficChart.options.scales.y.ticks.color = textColor;
+        this.trafficChart.options.scales.x.grid.color = gridColor;
+        this.trafficChart.options.scales.y.grid.color = gridColor;
+        this.trafficChart.update('none');
+    }
+
+    // Preferences Management
+    loadPreferences() {
+        const prefs = JSON.parse(localStorage.getItem('pitrack-prefs') || '{}');
+
+        // Apply theme
+        if (prefs.theme) this.theme = prefs.theme;
+        this.applyTheme();
+
+        // Apply time window via time pills
+        if (prefs.timeWindow) {
+            this.timeWindowMinutes = prefs.timeWindow;
+            // Update time pill buttons
+            document.querySelectorAll('.time-pill').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.minutes) === prefs.timeWindow);
+            });
+        }
+
+        // Apply active tab
+        if (prefs.activeTab) {
+            const tabBtn = document.querySelector(`.nav-icon-btn[data-tab="${prefs.activeTab}"]`);
+            if (tabBtn) tabBtn.click();
+        }
+    }
+
+    savePreferences() {
+        const prefs = {
+            theme: this.theme,
+            timeWindow: this.timeWindowMinutes,
+            activeTab: document.querySelector('.nav-icon-btn.active[data-tab]')?.dataset.tab || 'live'
+        };
+        localStorage.setItem('pitrack-prefs', JSON.stringify(prefs));
+        localStorage.setItem('pitrack-theme', this.theme);
+    }
+
+    // Traffic Chart
+    initTrafficChart() {
+        const canvas = this.elements.trafficChart;
+        if (!canvas || typeof Chart === 'undefined') return;
+
+        const isDark = this.theme === 'dark';
+        const textColor = isDark ? '#8b949e' : '#5e6673';
+        const gridColor = isDark ? '#30363d' : '#e5e7eb';
+
+        this.trafficChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: this.trafficData.labels,
+                datasets: [
+                    {
+                        label: 'Packets/s',
+                        data: this.trafficData.packetsPerSec,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        borderWidth: 2
+                    },
+                    {
+                        label: 'KB/s',
+                        data: this.trafficData.bytesPerSec,
+                        borderColor: '#28a745',
+                        backgroundColor: 'rgba(40, 167, 69, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        borderWidth: 2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: {
+                        display: false,
+                        grid: { display: false }
+                    },
+                    y: {
+                        position: 'left',
+                        beginAtZero: true,
+                        ticks: { color: textColor, font: { size: 10 } },
+                        grid: { color: gridColor }
+                    },
+                    y1: {
+                        position: 'right',
+                        beginAtZero: true,
+                        ticks: { color: textColor, font: { size: 10 } },
+                        grid: { display: false }
+                    }
+                }
+            }
+        });
+    }
+
+    updateTrafficChart() {
+        if (!this.trafficChart || !this.stats) return;
+
+        const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        this.trafficData.labels.push(now);
+        this.trafficData.packetsPerSec.push(Math.round(this.stats.packetsPerSec));
+        this.trafficData.bytesPerSec.push(Math.round(this.stats.bytesPerSec / 1024)); // KB/s
+
+        // Keep only last N points
+        if (this.trafficData.labels.length > this.maxChartPoints) {
+            this.trafficData.labels.shift();
+            this.trafficData.packetsPerSec.shift();
+            this.trafficData.bytesPerSec.shift();
+        }
+
+        this.trafficChart.update('none');
+    }
+
+    // Pause UI Management
+    updatePauseUI() {
+        const tableWrapper = this.elements.packetTableBody?.closest('.table-wrapper');
+        if (tableWrapper) {
+            tableWrapper.classList.toggle('paused', this.paused);
+        }
+        if (this.elements.liveIndicator) {
+            this.elements.liveIndicator.classList.toggle('paused', this.paused);
+            this.elements.liveIndicator.querySelector('span:last-child').textContent = this.paused ? 'Paused' : 'Live';
+        }
+    }
+
+    // Packet Detail Modal
+    showPacketDetail(packet) {
+        if (!packet || !this.elements.packetModal || !this.elements.packetDetails) return;
+
+        this.selectedPacket = packet;
+        const time = new Date(packet.timestamp);
+
+        const details = [
+            ['Timestamp', time.toLocaleString()],
+            ['Source IP', packet.srcIp + (packet.srcPort ? `:${packet.srcPort}` : '')],
+            ['Source Host', packet.srcHostname || '-'],
+            ['Source Country', packet.srcCountry || '-'],
+            ['Destination IP', packet.dstIp + (packet.dstPort ? `:${packet.dstPort}` : '')],
+            ['Dest Host', packet.dstHostname || '-'],
+            ['Dest Country', packet.dstCountry || '-'],
+            ['Protocol', packet.protocol],
+            ['Length', `${packet.length} bytes`],
+            ['Process', packet.processName || '-'],
+            ['Info', packet.info || '-'],
+            ['Application', packet.application || '-']
+        ];
+
+        if (packet.srcMac) details.push(['Source MAC', packet.srcMac]);
+        if (packet.dstMac) details.push(['Dest MAC', packet.dstMac]);
+
+        this.elements.packetDetails.innerHTML = details.map(([label, value]) =>
+            `<div class="detail-label">${label}</div><div class="detail-value">${value}</div>`
+        ).join('');
+
+        this.elements.packetModal.classList.add('active');
+    }
+
+    closePacketModal() {
+        if (this.elements.packetModal) {
+            this.elements.packetModal.classList.remove('active');
+        }
+        this.selectedPacket = null;
+    }
+
+    // Export to CSV
+    exportToCsv() {
+        const filter = this.elements.historyFilter?.value || '';
+        const country = this.elements.historyCountry?.value || '';
+        const startTime = this.elements.historyStart?.value ? new Date(this.elements.historyStart.value).toISOString() : '';
+        const endTime = this.elements.historyEnd?.value ? new Date(this.elements.historyEnd.value).toISOString() : '';
+
+        let url = `/api/history?limit=10000&offset=0`;
+        if (filter) url += `&filter=${encodeURIComponent(filter)}`;
+        if (country) url += `&country=${encodeURIComponent(country)}`;
+        if (startTime) url += `&start=${encodeURIComponent(startTime)}`;
+        if (endTime) url += `&end=${encodeURIComponent(endTime)}`;
+
+        fetch(url)
+            .then(res => res.json())
+            .then(data => {
+                const packets = data.packets || [];
+                if (packets.length === 0) {
+                    alert('No packets to export');
+                    return;
+                }
+
+                const headers = ['Timestamp', 'Source IP', 'Source Port', 'Dest IP', 'Dest Port', 'Protocol', 'Length', 'Process', 'Info'];
+                const rows = packets.map(p => [
+                    new Date(p.timestamp).toISOString(),
+                    p.srcIp,
+                    p.srcPort || '',
+                    p.dstIp,
+                    p.dstPort || '',
+                    p.protocol,
+                    p.length,
+                    p.processName || '',
+                    `"${(p.info || '').replace(/"/g, '""')}"`
+                ]);
+
+                const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `pitrack-export-${new Date().toISOString().slice(0, 10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            })
+            .catch(err => {
+                console.error('Export failed:', err);
+                alert('Export failed');
+            });
+    }
+
+    // Keyboard Shortcuts
+    bindKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ignore if typing in input
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+            switch (e.key) {
+                case ' ': // Space - Toggle pause
+                    e.preventDefault();
+                    if (this.elements.pauseBtn) this.elements.pauseBtn.click();
+                    break;
+                case 'Escape': // Escape - Clear filter or close modal
+                    if (this.elements.packetModal?.classList.contains('active')) {
+                        this.closePacketModal();
+                    } else if (this.elements.packetFilter) {
+                        this.elements.packetFilter.value = '';
+                        this.filter = '';
+                        this.renderPackets();
+                    }
+                    break;
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                    // Number keys for tabs
+                    const tabs = ['live', 'connections', 'history', 'countries'];
+                    const tabBtn = document.querySelector(`.nav-icon-btn[data-tab="${tabs[parseInt(e.key) - 1]}"]`);
+                    if (tabBtn) tabBtn.click();
+                    break;
+                case 'd':
+                case 'D':
+                    // Toggle dark mode
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        this.toggleTheme();
+                    }
+                    break;
+            }
+        });
+    }
+
+    // Port Name Helper
+    getPortName(port) {
+        return this.portNames[port] || null;
+    }
+
+    formatPortWithName(port) {
+        if (!port || port === 0) return '';
+        const name = this.getPortName(port);
+        return name ? `${port} <span class="port-label">(${name})</span>` : String(port);
+    }
+
+    // Search Highlighting
+    highlightText(text, query) {
+        if (!query || !text) return text;
+        const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+        return text.replace(regex, '<span class="highlight">$1</span>');
+    }
+
+    // Load Countries for Dropdown
+    loadCountries() {
+        fetch('/api/countries')
+            .then(res => res.json())
+            .then(countries => {
+                if (!this.elements.historyCountry || !Array.isArray(countries)) return;
+
+                // Clear existing options except first
+                this.elements.historyCountry.innerHTML = '<option value="">All Countries</option>';
+
+                // Add country options with flag emojis
+                countries.forEach(code => {
+                    const flag = this.getCountryFlag(code);
+                    const option = document.createElement('option');
+                    option.value = code;
+                    option.textContent = `${flag} ${code}`;
+                    this.elements.historyCountry.appendChild(option);
+                });
+            })
+            .catch(err => {
+                console.log('Could not load countries:', err);
+            });
     }
 }
 
