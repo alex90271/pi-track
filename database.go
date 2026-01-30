@@ -464,14 +464,18 @@ func (d *Database) GetDatabaseInfo() (map[string]interface{}, error) {
 	d.db.QueryRow("SELECT COUNT(*) FROM packets").Scan(&totalPackets)
 	info["totalPackets"] = totalPackets
 
-	// Date range
-	var minTime, maxTime sql.NullTime
-	d.db.QueryRow("SELECT MIN(timestamp), MAX(timestamp) FROM packets").Scan(&minTime, &maxTime)
-	if minTime.Valid {
-		info["earliestPacket"] = minTime.Time
+	// Date range - query as strings since sql.NullTime doesn't parse SQLite timestamps correctly
+	var minTimeStr, maxTimeStr sql.NullString
+	d.db.QueryRow("SELECT MIN(timestamp), MAX(timestamp) FROM packets").Scan(&minTimeStr, &maxTimeStr)
+	if minTimeStr.Valid && minTimeStr.String != "" {
+		if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", minTimeStr.String); err == nil {
+			info["earliestPacket"] = t
+		}
 	}
-	if maxTime.Valid {
-		info["latestPacket"] = maxTime.Time
+	if maxTimeStr.Valid && maxTimeStr.String != "" {
+		if t, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", maxTimeStr.String); err == nil {
+			info["latestPacket"] = t
+		}
 	}
 
 	// Database file size (would need os.Stat but we'll estimate)
